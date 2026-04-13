@@ -312,7 +312,9 @@ function StaffCard({
                 <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                   {staff.name}
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{staff.role}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+  {staff?.portfolio || staff.role}
+</p>
               </div>
               <div className="text-right shrink-0">
                 <p className={`text-2xl font-bold tabular-nums ${scoreColor(staff.avgPerformance)}`}>
