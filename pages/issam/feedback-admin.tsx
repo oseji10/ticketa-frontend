@@ -12,11 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
-  ThumbsUp,
   RefreshCw,
   CheckCircle,
-  XCircle,
-  HelpCircle,
 } from "lucide-react";
 import api from "../../lib/api";
 
@@ -24,18 +21,18 @@ import api from "../../lib/api";
 
 type GeneralSummary = {
   totalSubmissions: number;
-  avgOverallRating: number;
-  avgOrganization: number;
-  avgCommunication: number;
-  respectedYes: number;
-  respectedSomewhat: number;
-  respectedNo: number;
-  contributedYes: number;
-  contributedSomewhat: number;
-  contributedNo: number;
-  participateYes: number;
-  participateMaybe: number;
-  participateNo: number;
+  avgOverallRating: string | number;
+  avgOrganization: string | number;
+  avgCommunication: string | number;
+  respectedYes: string | number;
+  respectedSomewhat: string | number;
+  respectedNo: string | number;
+  contributedYes: string | number;
+  contributedSomewhat: string | number;
+  contributedNo: string | number;
+  participateYes: string | number;
+  participateMaybe: string | number;
+  participateNo: string | number;
 };
 
 type StaffSummary = {
@@ -44,10 +41,7 @@ type StaffSummary = {
   role: string;
   image: string | null;
   responseCount: number;
-  avgPerformance: number;
-  avgApproachability: number;
-  avgEffectiveness: number;
-  avgOverall: number;
+  avgPerformance: string | number;
 };
 
 type CommentEntry = {
@@ -72,48 +66,82 @@ type SummaryData = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(n: number | null | undefined, d = 1) {
-  return n == null ? "—" : Number(n).toFixed(d);
+function fmt(n: string | number | null | undefined, d = 1): string {
+  if (n == null) return "—";
+  const num = typeof n === "string" ? parseFloat(n) : n;
+  return isNaN(num) ? "—" : num.toFixed(d);
 }
 
-function scoreColor(v: number) {
-  if (v >= 4) return "text-emerald-600 dark:text-emerald-400";
-  if (v >= 3) return "text-amber-500 dark:text-amber-400";
+function scoreColor(v: string | number): string {
+  const num = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(num)) return "text-gray-400";
+  if (num >= 4) return "text-emerald-600 dark:text-emerald-400";
+  if (num >= 3) return "text-amber-500 dark:text-amber-400";
   return "text-rose-500 dark:text-rose-400";
 }
 
-function scoreFill(v: number) {
-  if (v >= 4) return "bg-emerald-500";
-  if (v >= 3) return "bg-amber-400";
+function scoreFill(v: string | number): string {
+  const num = typeof v === "string" ? parseFloat(v) : v;
+  if (isNaN(num)) return "bg-gray-400";
+  if (num >= 4) return "bg-emerald-500";
+  if (num >= 3) return "bg-amber-400";
   return "bg-rose-500";
 }
 
-function pct(n: number, total: number) {
-  if (!total) return 0;
-  return Math.round((n / total) * 100);
-}
+// ── Partial StarRow - Accurately reflects decimal scores ─────────────────────
+function StarRow({ value }: { value: string | number }) {
+  const numValue = typeof value === "string" ? parseFloat(value) : value;
+  const rating = isNaN(numValue) ? 0 : Math.max(0, Math.min(5, numValue));
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+  const fullStars = Math.floor(rating);
+  const partial = rating - fullStars; // e.g., 0.7 for 4.7
 
-function StarRow({ value, max = 5 }: { value: number; max?: number }) {
   return (
-    <div className="flex gap-0.5">
-      {Array.from({ length: max }).map((_, i) => (
-        <Star
-          key={i}
-          className={`w-3.5 h-3.5 ${
-            i < Math.round(value)
-              ? "text-amber-400 fill-amber-400"
-              : "text-gray-200 dark:text-gray-600"
-          }`}
-        />
-      ))}
+    <div className="flex gap-0.5 mt-1">
+      {[1, 2, 3, 4, 5].map((star) => {
+        if (star <= fullStars) {
+          // Fully filled star
+          return (
+            <Star
+              key={star}
+              className="w-4 h-4 text-yellow-400 fill-yellow-400"
+            />
+          );
+        } else if (star === fullStars + 1 && partial > 0) {
+          // Partially filled star
+          return (
+            <div key={star} className="relative w-4 h-4">
+              {/* Empty star background */}
+              <Star className="w-4 h-4 text-amber-200 dark:text-amber-800 fill-amber-200 dark:fill-amber-800" />
+              {/* Filled portion overlay */}
+              <div
+                className="absolute top-0 left-0 overflow-hidden"
+                style={{ width: `${partial * 100}%` }}
+              >
+                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+              </div>
+            </div>
+          );
+        } else {
+          // Empty star
+          return (
+            <Star
+              key={star}
+              className="w-4 h-4 text-amber-200 dark:text-amber-800 fill-amber-200 dark:fill-amber-800"
+            />
+          );
+        }
+      })}
     </div>
   );
 }
 
-function ScoreBar({ value }: { value: number }) {
-  const w = Math.round((value / 5) * 100);
+// ── Other components (ScoreBar, KpiCard, SentimentBar) ───────────────────────
+
+function ScoreBar({ value }: { value: string | number }) {
+  const numValue = typeof value === "string" ? parseFloat(value) : value;
+  const w = isNaN(numValue) ? 0 : Math.round((numValue / 5) * 100);
+
   return (
     <div className="flex items-center gap-2.5">
       <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -179,16 +207,20 @@ function SentimentBar({
 }: {
   title: string;
   description: string;
-  yes: number;
+  yes: string | number;
   yesLabel: string;
-  mid: number;
+  mid: string | number;
   midLabel: string;
-  no: number;
+  no: string | number;
   noLabel: string;
   total: number;
 }) {
-  const yPct = pct(yes, total);
-  const mPct = pct(mid, total);
+  const y = typeof yes === "string" ? parseFloat(yes) || 0 : yes;
+  const m = typeof mid === "string" ? parseFloat(mid) || 0 : mid;
+  const n = typeof no === "string" ? parseFloat(no) || 0 : no;
+
+  const yPct = total ? Math.round((y / total) * 100) : 0;
+  const mPct = total ? Math.round((m / total) * 100) : 0;
   const nPct = 100 - yPct - mPct;
 
   return (
@@ -197,22 +229,16 @@ function SentimentBar({
       <p className="text-xs text-gray-400 dark:text-gray-500 mb-4 leading-relaxed">{description}</p>
 
       <div className="flex rounded-xl overflow-hidden h-3 mb-4 gap-0.5">
-        {yPct > 0 && (
-          <div className="bg-emerald-500 transition-all duration-700" style={{ width: `${yPct}%` }} />
-        )}
-        {mPct > 0 && (
-          <div className="bg-amber-400 transition-all duration-700" style={{ width: `${mPct}%` }} />
-        )}
-        {nPct > 0 && (
-          <div className="bg-rose-500 transition-all duration-700" style={{ width: `${nPct}%` }} />
-        )}
+        {yPct > 0 && <div className="bg-emerald-500" style={{ width: `${yPct}%` }} />}
+        {mPct > 0 && <div className="bg-amber-400" style={{ width: `${mPct}%` }} />}
+        {nPct > 0 && <div className="bg-rose-500" style={{ width: `${nPct}%` }} />}
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-center">
         {[
-          { label: yesLabel, count: yes, pct: yPct, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/20", dot: "bg-emerald-500" },
-          { label: midLabel, count: mid, pct: mPct, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20", dot: "bg-amber-400" },
-          { label: noLabel, count: no, pct: nPct, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-900/20", dot: "bg-rose-500" },
+          { label: yesLabel, count: Math.round(y), pct: yPct, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+          { label: midLabel, count: Math.round(m), pct: mPct, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20" },
+          { label: noLabel, count: Math.round(n), pct: nPct, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-900/20" },
         ].map((item) => (
           <div key={item.label} className={`rounded-xl p-2.5 ${item.bg}`}>
             <p className={`text-xl font-bold ${item.color}`}>{item.count}</p>
@@ -234,10 +260,6 @@ function StaffCard({
   rank: number;
   commentGroup: CommentGroup | undefined;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const comments = commentGroup?.comments ?? [];
-  const hasComments = comments.length > 0;
-
   const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
 
   return (
@@ -280,7 +302,7 @@ function StaffCard({
               }}
             />
             {medal && (
-              <span className="absolute -top-2 -right-2 text-lg leading-none">{medal}</span>
+              <span className="absolute -top-2 -right-2 text-3xl leading-none">{medal}</span>
             )}
           </div>
 
@@ -293,8 +315,8 @@ function StaffCard({
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{staff.role}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className={`text-2xl font-bold tabular-nums ${scoreColor(staff.avgOverall)}`}>
-                  {fmt(staff.avgOverall)}
+                <p className={`text-2xl font-bold tabular-nums ${scoreColor(staff.avgPerformance)}`}>
+                  {fmt(staff.avgPerformance)}
                   <span className="text-xs font-normal text-gray-400">/5</span>
                 </p>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
@@ -302,104 +324,17 @@ function StaffCard({
                 </p>
               </div>
             </div>
-            <div className="mt-1.5">
-              <StarRow value={staff.avgOverall} />
+
+            {/* Partial stars reflecting exact score */}
+            <div className="mt-2">
+              <StarRow value={staff.avgPerformance} />
             </div>
           </div>
         </div>
-
-        {/* Score breakdown */}
-        {/* <div className="space-y-3 mb-5">
-          {[
-            { label: "How would you rate this staff member's overall performance in carrying out their duties?", value: staff.avgPerformance },
-            { label: "How approachable was this staff member?", value: staff.avgApproachability },
-            { label: "How effective was this staff member in their assigned role?", value: staff.avgEffectiveness },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5 leading-snug">{label}</p>
-              <ScoreBar value={value} />
-            </div>
-          ))}
-        </div> */}
-
-        {/* Comments section */}
-        {/* <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-          <button
-            type="button"
-            onClick={() => setExpanded((p) => !p)}
-            className={`w-full flex items-center justify-between gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 transition-colors ${
-              hasComments
-                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
-                : "text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/40 cursor-default"
-            }`}
-            disabled={!hasComments}
-          >
-            <span className="flex items-center gap-2">
-              <MessageSquare className="w-3.5 h-3.5" />
-              {hasComments
-                ? `${comments.length} written comment${comments.length !== 1 ? "s" : ""} submitted`
-                : "No written comments submitted"}
-            </span>
-            {hasComments &&
-              (expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
-          </button>
-
-          {expanded && hasComments && (
-            <div className="mt-3 space-y-4">
-              {comments.map((c, i) => (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden"
-                >
-                  <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                      Response #{i + 1}
-                    </p>
-                  </div>
-
-                  <div className="p-4 space-y-4">
-                    {c.strength && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                            <CheckCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                            What this staff member did well
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-6">
-                          {c.strength}
-                        </p>
-                      </div>
-                    )}
-
-                    {c.improvement && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                            <TrendingUp className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">
-                            Areas for improvement
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed pl-6">
-                          {c.improvement}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div> */}
       </div>
     </div>
   );
 }
-{/* <div className="pb-20"></div> */}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -413,7 +348,9 @@ export default function FeedbackAdminPage() {
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [activeTab, setActiveTab] = useState<"overview" | "staff" | "comments">("overview");
 
-  useEffect(() => { fetchSummary(); }, []);
+  useEffect(() => {
+    fetchSummary();
+  }, []);
 
   async function fetchSummary() {
     try {
@@ -449,19 +386,23 @@ export default function FeedbackAdminPage() {
 
   function toggleSort(field: typeof sortBy) {
     if (sortBy === field) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortBy(field); setSortDir("desc"); }
+    else {
+      setSortBy(field);
+      setSortDir("desc");
+    }
   }
 
   const filteredStaff = (data?.staff ?? [])
-    .filter(
-      (s) =>
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.role.toLowerCase().includes(search.toLowerCase())
+    .filter((s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.role.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
       const mul = sortDir === "desc" ? -1 : 1;
       if (sortBy === "name") return mul * a.name.localeCompare(b.name);
-      return mul * ((a[sortBy] as number) - (b[sortBy] as number));
+      const valA = typeof a.avgPerformance === "string" ? parseFloat(a.avgPerformance) || 0 : 0;
+      const valB = typeof b.avgPerformance === "string" ? parseFloat(b.avgPerformance) || 0 : 0;
+      return mul * (valA - valB);
     });
 
   const totalComments = (data?.comments ?? []).reduce((sum, g) => sum + g.comments.length, 0);
@@ -501,9 +442,7 @@ export default function FeedbackAdminPage() {
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-[10px] font-semibold uppercase tracking-widest mb-3">
               <Award className="w-3 h-3" /> Admin Analytics
             </span>
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
-              Feedback Report
-            </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">Feedback Report</h1>
             <p className="mt-1.5 text-sm text-white/70 max-w-xl leading-relaxed">
               ISSAM Residential Training — staff and programme evaluation analytics
               based on {total} participant response{total !== 1 ? "s" : ""}.
@@ -534,15 +473,15 @@ export default function FeedbackAdminPage() {
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-2xl mb-8 w-fit">
-        {([
+        {[
           { key: "overview", label: "Overview", icon: <TrendingUp className="w-3.5 h-3.5" /> },
           { key: "staff", label: `Staff (${(data?.staff ?? []).length})`, icon: <Users className="w-3.5 h-3.5" /> },
           { key: "comments", label: `Comments (${totalComments})`, icon: <MessageSquare className="w-3.5 h-3.5" /> },
-        ] as const).map((tab) => (
+        ].map((tab) => (
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => setActiveTab(tab.key as any)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               activeTab === tab.key
                 ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
@@ -558,22 +497,13 @@ export default function FeedbackAdminPage() {
       {/* ── OVERVIEW TAB ─────────────────────────────────────────────────────── */}
       {activeTab === "overview" && (
         <>
-          {/* KPI strip */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-            <KpiCard label="Total responses" value={total} sub="Unique submissions"
-              accent="#059669" icon={<Users className="w-5 h-5 text-emerald-600" />} />
-            <KpiCard label="Overall rating" value={`${fmt(g.avgOverallRating)} / 5`}
-              sub="Management team avg" accent="#0ea5e9"
-              icon={<Star className="w-5 h-5 text-sky-500" />} />
-            <KpiCard label="Organisation" value={`${fmt(g.avgOrganization)} / 5`}
-              sub="Programme organisation" accent="#8b5cf6"
-              icon={<TrendingUp className="w-5 h-5 text-violet-500" />} />
-            <KpiCard label="Communication" value={`${fmt(g.avgCommunication)} / 5`}
-              sub="From management" accent="#f59e0b"
-              icon={<MessageSquare className="w-5 h-5 text-amber-500" />} />
+            <KpiCard label="Total responses" value={total} sub="Unique submissions" accent="#059669" icon={<Users className="w-5 h-5 text-emerald-600" />} />
+            <KpiCard label="Overall rating" value={`${fmt(g.avgOverallRating)} / 5`} sub="Management team avg" accent="#0ea5e9" icon={<Star className="w-5 h-5 text-sky-500" />} />
+            <KpiCard label="Organisation" value={`${fmt(g.avgOrganization)} / 5`} sub="Programme organisation" accent="#8b5cf6" icon={<TrendingUp className="w-5 h-5 text-violet-500" />} />
+            <KpiCard label="Communication" value={`${fmt(g.avgCommunication)} / 5`} sub="From management" accent="#f59e0b" icon={<MessageSquare className="w-5 h-5 text-amber-500" />} />
           </div>
 
-          {/* Sentiment bars — 3 questions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <SentimentBar
               title="Felt respected and supported"
@@ -601,22 +531,21 @@ export default function FeedbackAdminPage() {
             />
           </div>
 
-          {/* Top 3 staff spotlight */}
           {(data?.staff ?? []).length > 0 && (
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                Top Performing Staff
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Top Performing Staff</h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {(data?.staff ?? [])
                   .slice()
-                  .sort((a, b) => b.avgOverall - a.avgOverall)
+                  .sort((a, b) => {
+                    const va = typeof a.avgPerformance === "string" ? parseFloat(a.avgPerformance) || 0 : 0;
+                    const vb = typeof b.avgPerformance === "string" ? parseFloat(b.avgPerformance) || 0 : 0;
+                    return vb - va;
+                  })
                   .slice(0, 3)
                   .map((s, i) => {
                     const cg = (data?.comments ?? []).find((c) => c.userId === s.userId);
-                    return (
-                      <StaffCard key={s.userId} staff={s} rank={i + 1} commentGroup={cg} />
-                    );
+                    return <StaffCard key={s.userId} staff={s} rank={i + 1} commentGroup={cg} />;
                   })}
               </div>
             </div>
@@ -629,9 +558,7 @@ export default function FeedbackAdminPage() {
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                All Staff Members
-              </h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">All Staff Members</h2>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                 {filteredStaff.length} of {(data?.staff ?? []).length} shown
               </p>
@@ -650,26 +577,21 @@ export default function FeedbackAdminPage() {
               </div>
 
               <div className="flex gap-2">
-                {(
-                  [
-                    { label: "Score", field: "avgOverall" },
-                    { label: "Name", field: "name" },
-                    { label: "Responses", field: "responseCount" },
-                  ] as const
-                ).map(({ label, field }) => (
+                {[
+                  { label: "Score", field: "avgOverall" as const },
+                  { label: "Name", field: "name" as const },
+                  { label: "Responses", field: "responseCount" as const },
+                ].map(({ label, field }) => (
                   <button
                     key={field}
                     type="button"
                     onClick={() => toggleSort(field)}
                     className={`rounded-xl px-3 py-2 text-xs font-semibold transition flex items-center gap-1 ${
-                      sortBy === field
-                        ? "bg-green-700 text-white"
-                        : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-emerald-400"
+                      sortBy === field ? "bg-green-700 text-white" : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-emerald-400"
                     }`}
                   >
                     {label}
-                    {sortBy === field &&
-                      (sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />)}
+                    {sortBy === field && (sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />)}
                   </button>
                 ))}
               </div>
@@ -677,21 +599,20 @@ export default function FeedbackAdminPage() {
           </div>
 
           {filteredStaff.length === 0 ? (
-            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">
-              No staff match your search.
-            </div>
+            <div className="py-16 text-center text-sm text-gray-400 dark:text-gray-500">No staff match your search.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
               {filteredStaff.map((s) => {
-                const globalRank =
-                  (data?.staff ?? [])
-                    .slice()
-                    .sort((a, b) => b.avgOverall - a.avgOverall)
-                    .findIndex((x) => x.userId === s.userId) + 1;
+                const globalRank = [...(data?.staff ?? [])]
+                  .sort((a, b) => {
+                    const va = typeof a.avgPerformance === "string" ? parseFloat(a.avgPerformance) || 0 : 0;
+                    const vb = typeof b.avgPerformance === "string" ? parseFloat(b.avgPerformance) || 0 : 0;
+                    return vb - va;
+                  })
+                  .findIndex((x) => x.userId === s.userId) + 1;
+
                 const cg = (data?.comments ?? []).find((c) => c.userId === s.userId);
-                return (
-                  <StaffCard key={s.userId} staff={s} rank={globalRank} commentGroup={cg} />
-                );
+                return <StaffCard key={s.userId} staff={s} rank={globalRank} commentGroup={cg} />;
               })}
             </div>
           )}
@@ -702,13 +623,10 @@ export default function FeedbackAdminPage() {
       {activeTab === "comments" && (
         <>
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-              All Written Comments
-            </h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">All Written Comments</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {totalComments} written response{totalComments !== 1 ? "s" : ""} across{" "}
               {(data?.comments ?? []).length} staff member{(data?.comments ?? []).length !== 1 ? "s" : ""}.
-              All comments submitted by participants are shown in full below.
             </p>
           </div>
 
@@ -721,7 +639,6 @@ export default function FeedbackAdminPage() {
             <div className="space-y-8 mb-10">
               {(data?.comments ?? []).map((group) => (
                 <div key={group.userId}>
-                  {/* Staff label */}
                   <div className="flex items-center gap-3 mb-4">
                     <img
                       src={
@@ -742,21 +659,19 @@ export default function FeedbackAdminPage() {
                     <div className="ml-auto h-px flex-1 bg-gray-100 dark:bg-gray-700 max-w-xs" />
                   </div>
 
-                  {/* All comments for this staff member */}
                   <div className="grid gap-4 sm:grid-cols-2">
                     {group.comments.map((c, i) => (
                       <div
                         key={i}
                         className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden"
                       >
-                        <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-100 dark:border-gray-700">
                           <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
                             Response #{i + 1}
                           </span>
                         </div>
-
                         <div className="p-4 space-y-4">
-                          {c.strength ? (
+                          {c.strength && (
                             <div>
                               <div className="flex items-center gap-1.5 mb-2">
                                 <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
@@ -770,11 +685,8 @@ export default function FeedbackAdminPage() {
                                 {c.strength}
                               </p>
                             </div>
-                          ) : (
-                            <p className="text-xs text-gray-300 dark:text-gray-600 italic">No strength comment provided.</p>
                           )}
-
-                          {c.improvement ? (
+                          {c.improvement && (
                             <div>
                               <div className="flex items-center gap-1.5 mb-2">
                                 <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
@@ -788,8 +700,6 @@ export default function FeedbackAdminPage() {
                                 {c.improvement}
                               </p>
                             </div>
-                          ) : (
-                            <p className="text-xs text-gray-300 dark:text-gray-600 italic">No improvement comment provided.</p>
                           )}
                         </div>
                       </div>
@@ -801,6 +711,8 @@ export default function FeedbackAdminPage() {
           )}
         </>
       )}
+
+      <div className="pb-20" />
     </Layout>
   );
 }
