@@ -153,10 +153,6 @@ export default function FeedbackPage() {
       number,
       {
         performance?: string;
-        approachability?: string;
-        effectiveness?: string;
-        strength?: string;
-        improvement?: string;
       }
     >,
   });
@@ -180,13 +176,7 @@ export default function FeedbackPage() {
 
   const isStaffCompleted = (id: number) => {
     const s = feedback.staff[id];
-    return !!(
-      s?.performance &&
-      s?.approachability &&
-      s?.effectiveness &&
-      s?.strength &&
-      s?.improvement
-    );
+    return !!s?.performance;
   };
 
   const completedCount = staffList.filter((s) => isStaffCompleted(s.id)).length;
@@ -218,8 +208,7 @@ export default function FeedbackPage() {
 
       setTimeout(() => {
         const sf = { ...prev.staff[id], [field]: value };
-        const done =
-          sf.performance && sf.approachability && sf.effectiveness && sf.strength && sf.improvement;
+        const done = !!sf.performance;
         if (done) {
           const idx = staffList.findIndex((s) => s.id === id);
           const next = staffList[idx + 1];
@@ -260,22 +249,20 @@ export default function FeedbackPage() {
 
   if (submitted) {
     return (
-      <>
-        <div className="min-h-[70vh] flex items-center justify-center px-4">
-          <div className="text-center max-w-md mx-auto">
-            <div className="w-24 h-24 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-6 ring-8 ring-green-50 dark:ring-green-900/10">
-              <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-3">
-              Thank you for your feedback!
-            </h2>
-            <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
-              Your responses have been recorded and will help improve the ISSAM
-              programme for future participants.
-            </p>
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="text-center max-w-md mx-auto">
+          <div className="w-24 h-24 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-6 ring-8 ring-green-50 dark:ring-green-900/10">
+            <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
           </div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-3">
+            Thank you for your feedback!
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 leading-relaxed">
+            Your responses have been recorded and will help improve the ISSAM
+            programme for future participants.
+          </p>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -284,7 +271,7 @@ export default function FeedbackPage() {
   return (
     <>
       {/* ── Sticky progress bar ──────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 mb-8">
+      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 px-8 sm:px-6 py-3 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 mb-8">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
@@ -338,7 +325,7 @@ export default function FeedbackPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto pb-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pb-20">
 
         {/* ── Page hero ─────────────────────────────────────────────────── */}
         <div className="mb-10">
@@ -359,7 +346,6 @@ export default function FeedbackPage() {
 
         {/* ── Section 1 — General Evaluation ───────────────────────────── */}
         <section className="mb-10">
-          {/* Section header */}
           <div className="flex items-center gap-3 mb-6">
             <div className="flex items-center justify-center w-9 h-9 rounded-full bg-green-700 text-white text-sm font-bold shrink-0">
               1
@@ -383,6 +369,7 @@ export default function FeedbackPage() {
             <div className="h-1.5 bg-gradient-to-r from-green-600 via-emerald-500 to-teal-400" />
 
             <div className="p-6 sm:p-8 space-y-0">
+              {/* Your 6 general questions remain unchanged */}
               <QuestionBlock
                 number={1}
                 question="Overall, how would you rate the ISSAM management team in terms of leadership, professionalism, and organisation of the programme?"
@@ -484,16 +471,15 @@ export default function FeedbackPage() {
                 Individual Staff Evaluation
               </h2>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                Please evaluate each staff member individually based on your direct interactions and observations.
+                Please rate each staff member's overall performance.
               </p>
             </div>
             <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 shrink-0">
-              {completedCount}/{staffList.length} done
+              {completedCount}/{staffList.length} rated
             </span>
           </div>
 
           {loadingStaff ? (
-            /* Skeleton */
             <div className="space-y-5">
               {[1, 2, 3].map((i) => (
                 <div
@@ -507,9 +493,7 @@ export default function FeedbackPage() {
                       <div className="h-3 w-28 bg-gray-100 dark:bg-gray-600 rounded-lg" />
                     </div>
                   </div>
-                  {[1, 2, 3].map((j) => (
-                    <div key={j} className="h-12 rounded-2xl bg-gray-100 dark:bg-gray-700 mb-4" />
-                  ))}
+                  <div className="h-12 rounded-2xl bg-gray-100 dark:bg-gray-700" />
                 </div>
               ))}
             </div>
@@ -523,7 +507,7 @@ export default function FeedbackPage() {
               {staffList.map((staff, index) => {
                 const completed = isStaffCompleted(staff.id);
                 const sf = feedback.staff[staff.id] ?? {};
-                const answeredFields = [sf.performance, sf.approachability, sf.effectiveness, sf.strength, sf.improvement].filter(Boolean).length;
+                const answeredFields = sf.performance ? 1 : 0;
 
                 return (
                   <div
@@ -549,17 +533,17 @@ export default function FeedbackPage() {
                       <div className="flex items-start gap-5 mb-8">
                         <div className="relative shrink-0">
                           <img
-                            src={
-                              staff.image
-                                ? `${process.env.NEXT_PUBLIC_API_FILE_URL}storage/${staff.image}`
-                                : `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}&background=059669&color=fff&size=80`
-                            }
-                            alt={staff.name}
-                            className="w-20 h-20 rounded-2xl object-cover bg-gray-100 dark:bg-gray-700"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}&background=059669&color=fff&size=80`;
-                            }}
-                          />
+  src={
+    staff.image
+      ? `${process.env.NEXT_PUBLIC_API_FILE_URL}storage/${staff.image}`
+      : `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}&background=059669&color=fff&size=200`
+  }
+  alt={staff.name}
+  className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover bg-gray-100 dark:bg-gray-700 shadow-md border border-white"
+  onError={(e) => {
+    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(staff.name)}&background=059669&color=fff&size=200`;
+  }}
+/>
                           {completed && (
                             <div className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-green-500 border-2 border-white dark:border-gray-800 flex items-center justify-center">
                               <CheckCircle className="w-3.5 h-3.5 text-white fill-white" />
@@ -573,139 +557,47 @@ export default function FeedbackPage() {
                               <p className="text-lg font-bold text-gray-900 dark:text-white">
                                 {staff.name}
                               </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                                 {staff.role}
                               </p>
                               {(staff.state || staff.lga) && (
-                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                <p className="text-xs text-gray-600 dark:text-gray-500 mt-1">
                                   {[staff.lga, staff.state].filter(Boolean).join(", ")}
                                 </p>
                               )}
                             </div>
-                            <span className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
+                            <span className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-gray-400 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
                               #{index + 1}
                             </span>
                           </div>
 
-                          {/* Progress dots */}
+                          {/* Progress indicator */}
                           <div className="flex items-center gap-2 mt-3">
                             <div className="flex gap-1">
-                              {["performance", "approachability", "effectiveness", "strength", "improvement"].map(
-                                (field) => (
-                                  <div
-                                    key={field}
-                                    title={field}
-                                    className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                                      sf[field as keyof typeof sf]
-                                        ? "bg-green-500"
-                                        : "bg-gray-200 dark:bg-gray-600"
-                                    }`}
-                                  />
-                                )
-                              )}
+                              <div
+                                className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                                  sf.performance ? "bg-green-500" : "bg-gray-200 dark:bg-gray-600"
+                                }`}
+                              />
                             </div>
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                              {answeredFields}/5 answered
+                            <span className="text-[10px] text-gray-600 dark:text-gray-500">
+                              {answeredFields}/1 rated
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Rating questions */}
-                      <div className="space-y-7 mb-7">
-                        {/* Performance */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed">
-                            How would you rate this staff member's overall performance in carrying out their duties and responsibilities during the programme?
-                            <span className="ml-2 text-xs font-normal text-gray-400">(Linear scale: 1–5)</span>
-                          </label>
-                          <RatingSelect
-                            value={sf.performance ?? ""}
-                            onChange={(v) => updateStaff(staff.id, "performance", v)}
-                          />
-                          <StarRow value={sf.performance ?? ""} />
-                        </div>
-
-                        {/* Approachability */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed">
-                            How approachable was this staff member? Were you comfortable approaching them with questions, concerns, or requests for assistance?
-                            <span className="ml-2 text-xs font-normal text-gray-400">(Linear scale: 1–5)</span>
-                          </label>
-                          <RatingSelect
-                            value={sf.approachability ?? ""}
-                            onChange={(v) => updateStaff(staff.id, "approachability", v)}
-                          />
-                          <StarRow value={sf.approachability ?? ""} />
-                        </div>
-
-                        {/* Effectiveness */}
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed">
-                            How effective was this staff member in fulfilling their assigned role and contributing to the smooth running of the programme?
-                            <span className="ml-2 text-xs font-normal text-gray-400">(Linear scale: 1–5)</span>
-                          </label>
-                          <RatingSelect
-                            value={sf.effectiveness ?? ""}
-                            onChange={(v) => updateStaff(staff.id, "effectiveness", v)}
-                          />
-                          <StarRow value={sf.effectiveness ?? ""} />
-                        </div>
-                      </div>
-
-                      {/* Open-text questions */}
-                      <div className="grid gap-5 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed mb-1">
-                            What did this staff member do particularly well?
-                          </label>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                            Please provide specific examples of strengths, positive behaviours, or contributions you observed.
-                          </p>
-                          <textarea
-                            rows={4}
-                            placeholder="Describe what this staff member did well, with specific examples if possible…"
-                            value={sf.strength ?? ""}
-                            onChange={(e) => updateStaff(staff.id, "strength", e.target.value)}
-                            className={`w-full rounded-2xl border px-4 py-3 text-sm resize-none outline-none transition-all duration-200 leading-relaxed
-                              ${
-                                sf.strength
-                                  ? "border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-600"
-                                  : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/60"
-                              }
-                              text-gray-800 dark:text-gray-200 placeholder:text-gray-300 dark:placeholder:text-gray-500
-                              focus:border-green-500 focus:ring-2 focus:ring-green-500/20`}
-                          />
-                          <p className="text-[10px] text-gray-400 mt-1.5 text-right">
-                            {(sf.strength ?? "").length} / 2000 characters
-                          </p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed mb-1">
-                            What areas can this staff member improve on?
-                          </label>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                            Please share constructive feedback on areas where this staff member could develop or do better in future programmes.
-                          </p>
-                          <textarea
-                            rows={4}
-                            placeholder="Share constructive suggestions for how this staff member can improve…"
-                            value={sf.improvement ?? ""}
-                            onChange={(e) => updateStaff(staff.id, "improvement", e.target.value)}
-                            className={`w-full rounded-2xl border px-4 py-3 text-sm resize-none outline-none transition-all duration-200 leading-relaxed
-                              ${
-                                sf.improvement
-                                  ? "border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-600"
-                                  : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/60"
-                              }
-                              text-gray-800 dark:text-gray-200 placeholder:text-gray-300 dark:placeholder:text-gray-500
-                              focus:border-green-500 focus:ring-2 focus:ring-green-500/20`}
-                          />
-                          <p className="text-[10px] text-gray-400 mt-1.5 text-right">
-                            {(sf.improvement ?? "").length} / 2000 characters
-                          </p>
-                        </div>
+                      {/* Performance Rating Only */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 leading-relaxed">
+                          How would you rate this staff member's overall performance in carrying out their duties and responsibilities during the programme?
+                          {/* <span className="ml-2 text-xs font-normal text-gray-400">(Linear scale: 1–5)</span> */}
+                        </label>
+                        <RatingSelect
+                          value={sf.performance ?? ""}
+                          onChange={(v) => updateStaff(staff.id, "performance", v)}
+                        />
+                        <StarRow value={sf.performance ?? ""} />
                       </div>
 
                       {/* Completion banner */}
@@ -750,7 +642,7 @@ export default function FeedbackPage() {
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
                   {isGeneralValid
-                    ? `General evaluation complete (6/6) · ${completedCount} of ${staffList.length} staff evaluated`
+                    ? `General evaluation complete (6/6) · ${completedCount} of ${staffList.length} staff rated`
                     : `Please complete all 6 general evaluation questions (${generalAnswered}/6 answered) before submitting.`}
                 </p>
               </div>
@@ -790,13 +682,14 @@ export default function FeedbackPage() {
                 {completedCount === 0 && (
                   <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
                     <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                    Complete the evaluation for at least one staff member
+                    Rate at least one staff member
                   </p>
                 )}
               </div>
             )}
           </div>
         </div>
+
       </div>
     </>
   );

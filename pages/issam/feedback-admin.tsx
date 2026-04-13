@@ -309,7 +309,7 @@ function StaffCard({
         </div>
 
         {/* Score breakdown */}
-        <div className="space-y-3 mb-5">
+        {/* <div className="space-y-3 mb-5">
           {[
             { label: "How would you rate this staff member's overall performance in carrying out their duties?", value: staff.avgPerformance },
             { label: "How approachable was this staff member?", value: staff.avgApproachability },
@@ -320,10 +320,10 @@ function StaffCard({
               <ScoreBar value={value} />
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* Comments section */}
-        <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+        {/* <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
           <button
             type="button"
             onClick={() => setExpanded((p) => !p)}
@@ -394,11 +394,12 @@ function StaffCard({
               ))}
             </div>
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   );
 }
+{/* <div className="pb-20"></div> */}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
