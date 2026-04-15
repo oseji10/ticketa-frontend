@@ -10,6 +10,7 @@ import {
   VoteIcon,
   TabletIcon,
   SyringeIcon,
+  DoorOpenIcon,
 } from "lucide-react";
 import { ComponentType } from "react";
 
@@ -78,6 +79,12 @@ const routes: IRoute[] = [
     path: "/issam/medication",
     icon: SyringeIcon,
     name: "Medicals",
+  },
+
+   {
+    path: "/issam/exitlogs",
+    icon: DoorOpenIcon,
+    name: "Exit Management",
   },
 
   {

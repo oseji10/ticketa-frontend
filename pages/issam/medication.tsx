@@ -255,7 +255,7 @@ export default function MedicationInventoryPage() {
             </Button>
             <Button
               onClick={() => setIsAddModalOpen(true)}
-              className="rounded-2xl h-11 bg-blue-700 border-blue-700 hover:bg-blue-800 hover:border-blue-800 w-full sm:w-auto"
+              className="rounded-2xl h-11 !bg-green-700 border-blue-700 hover:bg-blue-800 hover:border-blue-800 w-full sm:w-auto"
             >
               <span className="inline-flex items-center justify-center gap-2">
                 <Plus className="w-4 h-4" />
@@ -272,11 +272,20 @@ export default function MedicationInventoryPage() {
     Dispense Drug
   </span>
 </Button>
+
+<Button
+  onClick={() => router.push('/issam/medical-histories')}   // using next/router
+  className="rounded-2xl h-11 !bg-red-700 border-green-700 hover:bg-green-800 hover:border-green-800 w-full sm:w-auto"
+>
+  <span className="inline-flex items-center justify-center gap-2">
+    View Medical Histories
+  </span>
+</Button>
           </div>
         </div>
 
         {/* Hero Banner */}
-        <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-blue-900 via-blue-800 to-blue-700 shadow-xl">
+        <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-teal-900 via-teal-800 to-teal-700 shadow-xl">
           <div className="px-4 py-6 sm:px-8 sm:py-8 text-white">
             <div className="max-w-3xl">
               <div className="inline-flex items-center rounded-full bg-white/10 px-2 py-1 sm:px-3 sm:py-1 text-[8px] sm:text-xs font-semibold tracking-wide uppercase">

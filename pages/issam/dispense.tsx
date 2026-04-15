@@ -231,7 +231,7 @@ export default function MedicationDispensingPage() {
         </p>
 
         {/* Hero Banner */}
-        <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-purple-900 via-purple-800 to-purple-700 shadow-xl">
+        <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-teal-900 via-teal-800 to-teal-700 shadow-xl">
           <div className="px-4 py-6 sm:px-8 sm:py-8 text-white">
             <div className="max-w-3xl">
               <div className="inline-flex items-center rounded-full bg-white/10 px-2 py-1 sm:px-3 sm:py-1 text-[8px] sm:text-xs font-semibold tracking-wide uppercase">
@@ -266,7 +266,7 @@ export default function MedicationDispensingPage() {
             }}
             className={`flex-1 px-4 py-3 rounded-2xl border-2 font-medium transition-all ${
               isParticipant
-                ? "border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
+                ? "border-green-600 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
                 : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-purple-300"
             }`}
           >
@@ -346,7 +346,7 @@ export default function MedicationDispensingPage() {
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         ID: {attendee.attendeeId}
-                        {attendee.phoneNumber && ` • ${attendee.phoneNumber}`}
+                        {attendee.phone && ` • ${attendee.phone}`}
                         {attendee.state && ` • ${attendee.lga}, ${attendee.state}`}
                       </p>
                     </div>
