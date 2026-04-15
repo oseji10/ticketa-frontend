@@ -16,7 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { Html5Qrcode } from "html5-qrcode";
+import { Scanner, useDevices } from "@yudiel/react-qr-scanner";
 
 import Layout from "../containers/Layout";
 import PageTitle from "../components/Typography/PageTitle";
@@ -127,7 +127,6 @@ type ResultModalProps = {
   onClose: () => void;
 };
 
-const SCANNER_REGION_ID = "attendance-scanner-region";
 const EVENT_ID = 1;
 const DEFAULT_PER_PAGE = 10;
 
@@ -169,59 +168,42 @@ function ResultModal({ open, data, onClose }: ResultModalProps) {
             </p>
 
             <div className="mt-5 rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4 text-left space-y-2">
-              {data.attendeeName ? (
+              {data.attendeeName && (
                 <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Attendee:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Attendee:</span>{" "}
                   {data.attendeeName}
                 </p>
-              ) : null}
-
-              {data.uniqueId ? (
+              )}
+              {data.uniqueId && (
                 <p className="text-sm text-gray-700 dark:text-gray-300 break-all">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Unique ID:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Unique ID:</span>{" "}
                   {data.uniqueId}
                 </p>
-              ) : null}
-
-              {data.phone ? (
+              )}
+              {data.phone && (
                 <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Phone:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Phone:</span>{" "}
                   {data.phone}
                 </p>
-              ) : null}
-
-              {data.attendanceDate ? (
+              )}
+              {data.attendanceDate && (
                 <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Attendance Date:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Attendance Date:</span>{" "}
                   {formatDisplayDate(data.attendanceDate)}
                 </p>
-              ) : null}
-
-              {data.markedAt ? (
+              )}
+              {data.markedAt && (
                 <p className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Marked At:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Marked At:</span>{" "}
                   {formatDisplayDateTime(data.markedAt)}
                 </p>
-              ) : null}
-
-              {data.scannedCode ? (
+              )}
+              {data.scannedCode && (
                 <p className="text-sm text-gray-700 dark:text-gray-300 break-all">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    Pass Code:
-                  </span>{" "}
+                  <span className="font-semibold text-gray-900 dark:text-white">Pass Code:</span>{" "}
                   {maskToken(data.scannedCode)}
                 </p>
-              ) : null}
+              )}
             </div>
 
             <Button
@@ -272,7 +254,7 @@ function getTodayDateValue() {
 function getAttendeeName(record: AttendanceRecord) {
   return (
     record.attendee?.name ||
-    `${record.attendee?.fullName || ""} `.trim() ||
+    `${record.attendee?.firstName || ""} ${record.attendee?.lastName || ""}`.trim() ||
     "Unknown attendee"
   );
 }
@@ -309,19 +291,13 @@ function PassportAvatar({
 }
 
 export default function AttendanceScannerPage() {
-  const scannerRef = useRef<Html5Qrcode | null>(null);
   const isMountedRef = useRef(true);
   const lastScannedRef = useRef<string>("");
   const lastScanTimeRef = useRef<number>(0);
 
   const [scanState, setScanState] = useState<ScanState>("idle");
-  const [hasCameraPermission, setHasCameraPermission] = useState<
-    boolean | null
-  >(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isScannerRunning, setIsScannerRunning] = useState(false);
-  const [availableCameras, setAvailableCameras] = useState<
-    Array<{ id: string; label: string }>
-  >([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [deviceName, setDeviceName] = useState("Main Attendance Scanner");
   const [manualToken, setManualToken] = useState("");
@@ -341,19 +317,41 @@ export default function AttendanceScannerPage() {
     message: "",
   });
 
-  const [attendanceRecords, setAttendanceRecords] = useState<
-    AttendanceRecord[]
-  >([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE);
 
   const [resultModalOpen, setResultModalOpen] = useState(false);
-  const [resultModalData, setResultModalData] =
-    useState<ScanResultModalData | null>(null);
+  const [resultModalData, setResultModalData] = useState<ScanResultModalData | null>(null);
+
+  // Get available cameras
+  const devices = useDevices();
+
+  const availableCameras = useMemo(() => {
+    return devices
+      .filter((d) => d.kind === "videoinput")
+      .map((device) => ({
+        id: device.deviceId,
+        label: device.label || `Camera ${device.deviceId.slice(0, 6)}`,
+      }));
+  }, [devices]);
+
+  // Auto-select rear camera
+  useEffect(() => {
+    if (availableCameras.length > 0 && !selectedCameraId) {
+      const rearCamera =
+        availableCameras.find((cam) =>
+          ["back", "rear", "environment"].some((word) =>
+            cam.label.toLowerCase().includes(word)
+          )
+        ) || availableCameras[0];
+
+      setSelectedCameraId(rearCamera.id);
+    }
+  }, [availableCameras, selectedCameraId]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -362,7 +360,6 @@ export default function AttendanceScannerPage() {
 
     return () => {
       isMountedRef.current = false;
-      void stopScanner();
     };
   }, []);
 
@@ -374,176 +371,22 @@ export default function AttendanceScannerPage() {
 
   useEffect(() => {
     if (attendanceLock.isClosed && isScannerRunning) {
-      void stopScanner();
-    }
-  }, [attendanceLock.isClosed, isScannerRunning]);
-
-  async function loadCameras() {
-    try {
-      const devices = await Html5Qrcode.getCameras();
-
-      const mapped = devices.map((device) => ({
-        id: device.id,
-        label: device.label || `Camera ${device.id.slice(0, 6)}`,
-      }));
-
-      if (!isMountedRef.current) return [];
-
-      setAvailableCameras(mapped);
-
-      if (!selectedCameraId && mapped.length > 0) {
-        const rearCamera =
-          mapped.find((cam) => {
-            const label = cam.label.toLowerCase();
-            return (
-              label.includes("back") ||
-              label.includes("rear") ||
-              label.includes("environment")
-            );
-          }) || mapped[0];
-
-        setSelectedCameraId(rearCamera.id);
-      }
-
-      return mapped;
-    } catch {
-      if (!isMountedRef.current) return [];
-      toast.error("Unable to access available cameras.");
-      return [];
-    }
-  }
-
-  async function stopScanner() {
-    try {
-      if (scannerRef.current && isScannerRunning) {
-        await scannerRef.current.stop();
-        await scannerRef.current.clear();
-      } else if (scannerRef.current) {
-        await scannerRef.current.clear();
-      }
-    } catch {
-      //
-    } finally {
-      if (!isMountedRef.current) return;
       setIsScannerRunning(false);
-      setScanState("idle");
     }
-  }
+  }, [attendanceLock.isClosed]);
 
-  async function startScanner() {
-    if (attendanceLock.isClosed) {
-      setResultModalData({
-        type: "error",
-        title: "Attendance Closed",
-        message:
-          attendanceLock.message ||
-          "Attendance taking has been closed for today.",
-      });
-      setResultModalOpen(true);
-      return;
+  const scannerConstraints = useMemo<MediaTrackConstraints>(() => {
+    if (selectedCameraId) {
+      return { deviceId: { exact: selectedCameraId } };
     }
-
-    if (scanState === "starting" || scanState === "processing") return;
-
-    try {
-      setScanState("starting");
-
-      const devices = availableCameras.length
-        ? availableCameras
-        : await loadCameras();
-
-      if (!devices || devices.length === 0) {
-        setScanState("error");
-        setHasCameraPermission(false);
-        setResultModalData({
-          type: "error",
-          title: "No camera found",
-          message: "No usable camera was detected on this device.",
-        });
-        setResultModalOpen(true);
-        return;
-      }
-
-      if (scannerRef.current) {
-        try {
-          await scannerRef.current.clear();
-        } catch {
-          //
-        }
-      }
-
-      const scanner = new Html5Qrcode(SCANNER_REGION_ID);
-      scannerRef.current = scanner;
-
-      const isMobile =
-        typeof navigator !== "undefined" &&
-        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-      const cameraConfig: string | { facingMode: "environment" } =
-        selectedCameraId
-          ? selectedCameraId
-          : isMobile
-            ? { facingMode: "environment" }
-            : devices[0].id;
-
-      await scanner.start(
-        cameraConfig,
-        {
-          fps: 10,
-          qrbox: { width: 240, height: 240 },
-          aspectRatio: 1.333334,
-        },
-        async (decodedText) => {
-          const now = Date.now();
-
-          if (
-            decodedText === lastScannedRef.current &&
-            now - lastScanTimeRef.current < 2500
-          ) {
-            return;
-          }
-
-          lastScannedRef.current = decodedText;
-          lastScanTimeRef.current = now;
-
-          await markAttendance(decodedText);
-        },
-        () => {
-          //
-        },
-      );
-
-      if (!isMountedRef.current) return;
-
-      setHasCameraPermission(true);
-      setIsScannerRunning(true);
-      setScanState("scanning");
-      toast.success("Scanner started");
-    } catch (error: any) {
-      if (!isMountedRef.current) return;
-
-      setHasCameraPermission(false);
-      setIsScannerRunning(false);
-      setScanState("error");
-      setResultModalData({
-        type: "error",
-        title: "Scanner failed to start",
-        message:
-          error?.message ||
-          "Camera permission was denied or the scanner could not initialize.",
-      });
-      setResultModalOpen(true);
-      toast.error("Unable to start scanner.");
-    }
-  }
+    return { facingMode: "environment" };
+  }, [selectedCameraId]);
 
   async function loadSummary() {
     try {
       const { data } = await api.get<AttendanceSummaryResponse>(
         `/events/${EVENT_ID}/attendance/summary`,
-        {
-          params: { date: attendanceDate },
-        },
+        { params: { date: attendanceDate } }
       );
 
       setSummary({
@@ -560,14 +403,13 @@ export default function AttendanceScannerPage() {
         message: data?.data?.attendanceLock?.message || "",
       });
     } catch {
-      //
+      // ignore error
     }
   }
 
   async function loadAttendanceRecords(page = 1) {
     try {
       setLoadingRecords(true);
-
       const { data } = await api.get<AttendanceListResponse>(
         `/events/${EVENT_ID}/attendance`,
         {
@@ -576,16 +418,15 @@ export default function AttendanceScannerPage() {
             page,
             per_page: perPage,
           },
-        },
+        }
       );
 
-      const payload = data?.data;
-
-      setAttendanceRecords(payload?.data || []);
-      setCurrentPage(payload?.current_page || page);
-      setLastPage(payload?.last_page || 1);
-      setTotalRecords(payload?.total || 0);
-      setPerPage(payload?.per_page || DEFAULT_PER_PAGE);
+      const payload = data?.data || {};
+      setAttendanceRecords(payload.data || []);
+      setCurrentPage(payload.current_page || page);
+      setLastPage(payload.last_page || 1);
+      setTotalRecords(payload.total || 0);
+      setPerPage(payload.per_page || DEFAULT_PER_PAGE);
     } catch {
       toast.error("Unable to load attendance records.");
     } finally {
@@ -598,13 +439,10 @@ export default function AttendanceScannerPage() {
     if (!token) return;
 
     if (attendanceLock.isClosed) {
-      setScanState("error");
       setResultModalData({
         type: "error",
         title: "Attendance Closed",
-        message:
-          attendanceLock.message ||
-          "Attendance taking has been closed for today.",
+        message: attendanceLock.message || "Attendance taking has been closed for today.",
         attendanceDate,
         scannedCode: token,
       });
@@ -622,7 +460,7 @@ export default function AttendanceScannerPage() {
           deviceName,
           scanSource: "barcode",
           attendanceDate,
-        },
+        }
       );
 
       const resultData = data?.data || {};
@@ -634,7 +472,7 @@ export default function AttendanceScannerPage() {
         attendanceDate: resultData.attendanceDate,
         markedAt: resultData.markedAt,
         scannedCode: token,
-        attendeeName: resultData.attendee?.fullName,
+        attendeeName: resultData.attendee?.name,
         uniqueId: resultData.attendee?.uniqueId,
         phone: resultData.attendee?.phone,
       });
@@ -659,13 +497,8 @@ export default function AttendanceScannerPage() {
           isClosed: true,
           closeTime: resultData?.closeTime || prev.closeTime,
           closeDateTime: resultData?.closeDateTime || prev.closeDateTime,
-          message:
-            response?.message || "Attendance taking has been closed for today.",
+          message: response?.message || "Attendance taking has been closed for today.",
         }));
-
-        if (isScannerRunning) {
-          await stopScanner();
-        }
       }
 
       setResultModalData({
@@ -694,30 +527,22 @@ export default function AttendanceScannerPage() {
 
   async function submitManualToken(e: React.FormEvent) {
     e.preventDefault();
-
     if (attendanceLock.isClosed) {
-      toast.error(
-        attendanceLock.message ||
-          "Attendance taking has been closed for today.",
-      );
+      toast.error(attendanceLock.message || "Attendance taking has been closed for today.");
       return;
     }
-
     if (!manualToken.trim()) {
       toast.error("Enter a pass code first.");
       return;
     }
-
     await markAttendance(manualToken);
   }
 
   const statusBadge = useMemo(() => {
     if (scanState === "scanning") return { type: "success", label: "Scanning" };
-    if (scanState === "processing")
-      return { type: "warning", label: "Processing" };
+    if (scanState === "processing") return { type: "warning", label: "Processing" };
     if (scanState === "success") return { type: "success", label: "Marked" };
     if (scanState === "error") return { type: "danger", label: "Attention" };
-    if (scanState === "starting") return { type: "warning", label: "Starting" };
     return { type: "neutral", label: "Idle" };
   }, [scanState]);
 
@@ -725,7 +550,7 @@ export default function AttendanceScannerPage() {
     totalRecords > 0
       ? `Showing ${(currentPage - 1) * perPage + 1} to ${Math.min(
           currentPage * perPage,
-          totalRecords,
+          totalRecords
         )} of ${totalRecords} records`
       : "No records";
 
@@ -740,8 +565,7 @@ export default function AttendanceScannerPage() {
       <div className="mb-6">
         <PageTitle>Attendance Scanner</PageTitle>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Scan attendee passes each morning and mark attendance automatically
-          for the selected date.
+          Scan attendee passes each morning and mark attendance automatically for the selected date.
         </p>
 
         <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-green-900 via-green-800 to-green-700 shadow-xl">
@@ -750,21 +574,18 @@ export default function AttendanceScannerPage() {
               <div className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[10px] sm:text-xs font-semibold tracking-wide uppercase">
                 Daily Attendance
               </div>
-
               <h2 className="mt-3 text-xl sm:text-3xl font-bold leading-tight">
                 One scan, one attendance record per day
               </h2>
-
               <p className="mt-2 text-xs sm:text-base text-slate-200 leading-6">
-                Supervisors can scan each attendee pass once daily. Tap OK after
-                each result to continue scanning.
+                Supervisors can scan each attendee pass once daily. Tap OK after each result to continue scanning.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {attendanceLock.enabled ? (
+      {attendanceLock.enabled && (
         <div
           className={`mb-4 rounded-2xl border px-4 py-3 ${
             attendanceLock.isClosed
@@ -777,13 +598,12 @@ export default function AttendanceScannerPage() {
           </p>
           <p className="mt-1 text-sm">
             {attendanceLock.message ||
-              (attendanceLock.closeTime
-                ? `Attendance closes at ${attendanceLock.closeTime}.`
-                : "Attendance timing is active.")}
+              (attendanceLock.closeTime ? `Attendance closes at ${attendanceLock.closeTime}.` : "")}
           </p>
         </div>
-      ) : null}
+      )}
 
+      {/* ====================== MOBILE LAYOUT ====================== */}
       <div className="sm:hidden space-y-4">
         <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4">
           <div className="space-y-3">
@@ -791,7 +611,6 @@ export default function AttendanceScannerPage() {
               Attendance Date
             </label>
             <Input
-              readOnly
               type="date"
               className="h-11 rounded-2xl border-gray-200 dark:border-gray-600"
               value={attendanceDate}
@@ -802,25 +621,28 @@ export default function AttendanceScannerPage() {
           <div className="mt-4 flex flex-col gap-3">
             {!isScannerRunning ? (
               <Button
-                onClick={startScanner}
-                disabled={
-                  attendanceLock.isClosed ||
-                  scanState === "starting" ||
-                  scanState === "processing"
-                }
+                onClick={() => {
+                  if (attendanceLock.isClosed) {
+                    toast.error(attendanceLock.message || "Attendance is closed");
+                    return;
+                  }
+                  setIsScannerRunning(true);
+                  setScanState("scanning");
+                  setHasCameraPermission(true);
+                  toast.success("Scanner started");
+                }}
+                disabled={attendanceLock.isClosed || scanState === "processing"}
                 className="rounded-2xl h-12 bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800 w-full"
               >
                 <span className="inline-flex items-center gap-2">
                   <Camera className="w-4 h-4" />
-                  {attendanceLock.isClosed
-                    ? "Attendance Closed"
-                    : "Start Scanner"}
+                  {attendanceLock.isClosed ? "Attendance Closed" : "Start Scanner"}
                 </span>
               </Button>
             ) : (
               <Button
                 layout="outline"
-                onClick={stopScanner}
+                onClick={() => setIsScannerRunning(false)}
                 className="rounded-2xl h-12 w-full"
               >
                 <span className="inline-flex items-center gap-2">
@@ -830,42 +652,64 @@ export default function AttendanceScannerPage() {
               </Button>
             )}
 
-            <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2">
-              <div
-                id={SCANNER_REGION_ID}
-                className="overflow-hidden rounded-2xl min-h-[320px] bg-black"
-              />
-            </div>
+            {isScannerRunning && (
+              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 overflow-hidden">
+                <Scanner
+                  onScan={(detectedCodes) => {
+                    if (detectedCodes.length === 0) return;
+                    const decodedText = detectedCodes[0].rawValue;
+
+                    const now = Date.now();
+                    if (
+                      decodedText === lastScannedRef.current &&
+                      now - lastScanTimeRef.current < 2500
+                    ) {
+                      return;
+                    }
+
+                    lastScannedRef.current = decodedText;
+                    lastScanTimeRef.current = now;
+
+                    markAttendance(decodedText);
+                  }}
+                  onError={(error) => {
+                    console.error(error);
+                    if (String(error).toLowerCase().includes("permission")) {
+                      setHasCameraPermission(false);
+                      toast.error("Camera permission denied");
+                    }
+                  }}
+                  constraints={scannerConstraints}
+                  formats={["qr_code"]}
+                  styles={{
+                    container: { width: "100%", height: "320px" },
+                    video: { width: "100%", height: "100%", objectFit: "cover", background: "#000" },
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Today's Register - Mobile */}
         <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
               Today&apos;s Register
             </h4>
-            <Button
-              layout="outline"
-              className="rounded-2xl h-10"
-              onClick={() => loadAttendanceRecords(currentPage)}
-            >
+            <Button layout="outline" className="rounded-2xl h-10" onClick={() => loadAttendanceRecords(currentPage)}>
               Refresh
             </Button>
           </div>
 
           <div className="mt-4 space-y-3">
             {loadingRecords ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Loading attendance...
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading attendance...</p>
             ) : attendanceRecords.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No attendance records yet.
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No attendance records yet.</p>
             ) : (
               attendanceRecords.map((record) => {
                 const attendeeName = getAttendeeName(record);
-
                 return (
                   <div
                     key={record.attendanceId}
@@ -874,10 +718,9 @@ export default function AttendanceScannerPage() {
                     <div className="flex items-start gap-3">
                       <PassportAvatar
                         name={attendeeName}
-                        passportUrl={record.attendee?.photoUrl}
+                        passportUrl={record.attendee?.passportUrl}
                         size="lg"
                       />
-
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-gray-900 dark:text-white break-words">
                           {attendeeName}
@@ -903,26 +746,18 @@ export default function AttendanceScannerPage() {
               disabled={currentPage <= 1 || loadingRecords}
               onClick={() => loadAttendanceRecords(currentPage - 1)}
             >
-              <span className="inline-flex items-center gap-2">
-                <ChevronLeft className="w-4 h-4" />
-                Prev
-              </span>
+              <ChevronLeft className="w-4 h-4" /> Prev
             </Button>
-
-            <span className="text-xs text-gray-500 dark:text-gray-400 text-center">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               Page {currentPage} of {lastPage}
             </span>
-
             <Button
               layout="outline"
               className="rounded-2xl h-10 px-4"
               disabled={currentPage >= lastPage || loadingRecords}
               onClick={() => loadAttendanceRecords(currentPage + 1)}
             >
-              <span className="inline-flex items-center gap-2">
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </span>
+              Next <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
@@ -932,13 +767,12 @@ export default function AttendanceScannerPage() {
         </div>
       </div>
 
+      {/* ====================== DESKTOP LAYOUT ====================== */}
       <div className="hidden sm:grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Live Scanner
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Live Scanner</h3>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                 Point the camera at the printed attendee pass.
               </p>
@@ -947,25 +781,28 @@ export default function AttendanceScannerPage() {
             <div className="flex flex-wrap gap-2">
               {!isScannerRunning ? (
                 <Button
-                  onClick={startScanner}
-                  disabled={
-                    attendanceLock.isClosed ||
-                    scanState === "starting" ||
-                    scanState === "processing"
-                  }
+                  onClick={() => {
+                    if (attendanceLock.isClosed) {
+                      toast.error(attendanceLock.message || "Attendance is closed");
+                      return;
+                    }
+                    setIsScannerRunning(true);
+                    setScanState("scanning");
+                    setHasCameraPermission(true);
+                    toast.success("Scanner started");
+                  }}
+                  disabled={attendanceLock.isClosed || scanState === "processing"}
                   className="rounded-2xl h-11 bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800 w-full sm:w-auto"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Camera className="w-4 h-4" />
-                    {attendanceLock.isClosed
-                      ? "Attendance Closed"
-                      : "Start Scanner"}
+                    {attendanceLock.isClosed ? "Attendance Closed" : "Start Scanner"}
                   </span>
                 </Button>
               ) : (
                 <Button
                   layout="outline"
-                  onClick={stopScanner}
+                  onClick={() => setIsScannerRunning(false)}
                   className="rounded-2xl h-11 w-full sm:w-auto"
                 >
                   <span className="inline-flex items-center gap-2">
@@ -979,11 +816,39 @@ export default function AttendanceScannerPage() {
 
           <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr,250px]">
             <div>
-              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 sm:p-3">
-                <div
-                  id={SCANNER_REGION_ID}
-                  className="overflow-hidden rounded-2xl min-h-[300px] sm:min-h-[360px] md:min-h-[420px] bg-black"
-                />
+              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 sm:p-3 overflow-hidden">
+                {isScannerRunning ? (
+                  <Scanner
+                    onScan={(detectedCodes) => {
+                      if (detectedCodes.length === 0) return;
+                      const decodedText = detectedCodes[0].rawValue;
+
+                      const now = Date.now();
+                      if (
+                        decodedText === lastScannedRef.current &&
+                        now - lastScanTimeRef.current < 2500
+                      ) {
+                        return;
+                      }
+
+                      lastScannedRef.current = decodedText;
+                      lastScanTimeRef.current = now;
+
+                      markAttendance(decodedText);
+                    }}
+                    onError={(error) => console.error("Scanner error:", error)}
+                    constraints={scannerConstraints}
+                    formats={["qr_code"]}
+                    styles={{
+                      container: { width: "100%", minHeight: "420px" },
+                      video: { width: "100%", height: "100%", objectFit: "cover", background: "#000" },
+                    }}
+                  />
+                ) : (
+                  <div className="min-h-[420px] bg-black rounded-2xl flex items-center justify-center text-gray-400">
+                    Click "Start Scanner" to begin
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1005,7 +870,6 @@ export default function AttendanceScannerPage() {
                   Attendance Date
                 </label>
                 <Input
-                  readOnly
                   type="date"
                   className="h-11 rounded-2xl border-gray-200 dark:border-gray-600"
                   value={attendanceDate}
@@ -1021,10 +885,9 @@ export default function AttendanceScannerPage() {
                   className="h-11 rounded-2xl border-gray-200 dark:border-gray-600"
                   value={selectedCameraId}
                   onChange={(e) => setSelectedCameraId(e.target.value)}
-                  disabled={isScannerRunning}
                 >
                   {availableCameras.length === 0 ? (
-                    <option value="">No camera loaded yet</option>
+                    <option value="">Loading cameras...</option>
                   ) : (
                     availableCameras.map((camera) => (
                       <option key={camera.id} value={camera.id}>
@@ -1033,61 +896,56 @@ export default function AttendanceScannerPage() {
                     ))
                   )}
                 </Select>
+              </div>
 
-                <div className="mt-3">
-                  <Button
-                    layout="outline"
-                    className="rounded-2xl w-full h-10"
-                    onClick={loadCameras}
-                    disabled={isScannerRunning}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <RefreshCcw className="w-4 h-4" />
-                      Refresh Cameras
-                    </span>
-                  </Button>
+              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Keyboard className="w-4 h-4 text-gray-500" />
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Manual Entry</h4>
                 </div>
+                <form onSubmit={submitManualToken} className="space-y-3">
+                  <Input
+                    className="h-11 rounded-2xl border-gray-200 dark:border-gray-600"
+                    value={manualToken}
+                    onChange={(e) => setManualToken(e.target.value)}
+                    placeholder="Paste or type pass token"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={scanState === "processing"}
+                    className="rounded-2xl w-full h-11 bg-slate-900 border-slate-900 hover:bg-slate-800 hover:border-slate-800"
+                  >
+                    Mark Attendance Manually
+                  </Button>
+                </form>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Guide + Register Sidebar */}
         <div className="space-y-5">
           <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-5">
             <div className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5 text-gray-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Attendance Guide
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Guide</h3>
             </div>
-
             <div className="mt-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div className="flex gap-3">
                 <CalendarDays className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
                 <p>Attendance is marked once per attendee per selected day.</p>
               </div>
-
               <div className="flex gap-3">
                 <UserCheck className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>
-                  If a pass is scanned again on the same day, the backend should
-                  return already marked.
-                </p>
+                <p>If a pass is scanned again on the same day, it will show already marked.</p>
               </div>
-
               <div className="flex gap-3">
                 <ScanLine className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>
-                  Use manual entry only when the printed QR or barcode is
-                  damaged or unreadable.
-                </p>
+                <p>Use manual entry only when the printed QR or barcode is damaged.</p>
               </div>
-
               <div className="flex gap-3">
                 <Users className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>
-                  After every scan, tap OK on the popup to continue scanning.
-                </p>
+                <p>After every scan, tap OK on the popup to continue scanning.</p>
               </div>
             </div>
           </div>
@@ -1096,16 +954,9 @@ export default function AttendanceScannerPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-gray-500" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Attendance Register
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Register</h3>
               </div>
-
-              <Button
-                layout="outline"
-                className="rounded-2xl h-10"
-                onClick={() => loadAttendanceRecords(currentPage)}
-              >
+              <Button layout="outline" className="rounded-2xl h-10" onClick={() => loadAttendanceRecords(currentPage)}>
                 Refresh
               </Button>
             </div>
@@ -1115,55 +966,38 @@ export default function AttendanceScannerPage() {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900/40">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Passport
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Attendee
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Unique ID
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Time Marked
-                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Passport</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Attendee</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Unique ID</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Time Marked</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                     {loadingRecords ? (
                       <tr>
-                        <td
-                          colSpan={4}
-                          className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400"
-                        >
+                        <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
                           Loading attendance records...
                         </td>
                       </tr>
                     ) : attendanceRecords.length === 0 ? (
                       <tr>
-                        <td
-                          colSpan={4}
-                          className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400"
-                        >
+                        <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
                           No attendance records found for this date.
                         </td>
                       </tr>
                     ) : (
                       attendanceRecords.map((record) => {
                         const attendeeName = getAttendeeName(record);
-
                         return (
                           <tr key={record.attendanceId}>
                             <td className="px-4 py-3">
                               <PassportAvatar
                                 name={attendeeName}
-                                passportUrl={record.attendee?.photoUrl}
+                                passportUrl={record.attendee?.passportUrl}
                                 size="md"
                               />
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                              {attendeeName}
-                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{attendeeName}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                               {record.attendee?.uniqueId || "—"}
                             </td>
@@ -1180,10 +1014,7 @@ export default function AttendanceScannerPage() {
             </div>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {paginationMetaText}
-              </p>
-
+              <p className="text-sm text-gray-500 dark:text-gray-400">{paginationMetaText}</p>
               <div className="flex items-center gap-2">
                 <Button
                   layout="outline"
@@ -1191,34 +1022,24 @@ export default function AttendanceScannerPage() {
                   disabled={currentPage <= 1 || loadingRecords}
                   onClick={() => loadAttendanceRecords(currentPage - 1)}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <ChevronLeft className="w-4 h-4" />
-                    Prev
-                  </span>
+                  <ChevronLeft className="w-4 h-4" /> Prev
                 </Button>
-
                 <span className="text-sm text-gray-600 dark:text-gray-300">
                   Page {currentPage} of {lastPage}
                 </span>
-
                 <Button
                   layout="outline"
                   className="rounded-2xl h-10 px-4"
                   disabled={currentPage >= lastPage || loadingRecords}
                   onClick={() => loadAttendanceRecords(currentPage + 1)}
                 >
-                  <span className="inline-flex items-center gap-2">
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </span>
+                  Next <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Current Device
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Current Device</p>
               <p className="mt-2 font-semibold text-gray-900 dark:text-white break-words">
                 {deviceName || "Unnamed scanner"}
               </p>

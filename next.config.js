@@ -31,7 +31,7 @@ const nextConfig = {
   //   domains: [], // Add your image domains here
   // },
   
-  allowedDevOrigins: ['172.20.10.8'],
+  allowedDevOrigins: ['https://otiosely-chronological-cari.ngrok-free.dev'],
 
 }
 

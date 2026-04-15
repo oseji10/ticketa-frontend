@@ -6,6 +6,10 @@ import {
   ClipboardList,
   UtensilsCrossed,
   AlertTriangle,
+  ForkKnife,
+  VoteIcon,
+  TabletIcon,
+  SyringeIcon,
 } from "lucide-react";
 import { ComponentType } from "react";
 
@@ -64,6 +68,18 @@ const routes: IRoute[] = [
     icon: UtensilsCrossed,
     name: "Meal Service",
   },
+  {
+    path: "/issam/meal",
+    icon: ForkKnife,
+    name: "Meal Management",
+  },
+
+  {
+    path: "/issam/medication",
+    icon: SyringeIcon,
+    name: "Medicals",
+  },
+
   {
     path: "incident-report",
     icon: AlertTriangle,

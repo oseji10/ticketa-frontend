@@ -23,6 +23,9 @@ import {
   Image as ImageIcon,
   X,
   Home,
+  Users,
+  Palette,
+  UserCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -35,6 +38,21 @@ type AssignedPassData = {
   serialNumber: string;
   status: string;
   assignedAt: string | null;
+} | null;
+
+type ColorData = {
+  colorId: number;
+  name: string;
+  hexCode?: string | null;
+  capacity: number;
+} | null;
+
+type SubCLData = {
+  subClId: number;
+  userId: number;
+  name?: string;
+  email?: string;
+  phone?: string;
 } | null;
 
 type AttendeeData = {
@@ -63,6 +81,8 @@ type AttendeeData = {
   createdAt: string | null;
   updatedAt: string | null;
   assignedPass: AssignedPassData;
+  color?: ColorData;
+  subCL?: SubCLData;
 };
 
 type SearchResponseData = {
@@ -78,6 +98,8 @@ type RegisteredAttendeeRow = {
   gender: string | null;
   accommodation: string | null;
   color?: string | null;
+  colorName?: string | null;
+  subClName?: string | null;
   serialNumber: string | null;
   registeredAt: string | null;
 };
@@ -120,10 +142,31 @@ function getSuggestedAccommodation(gender?: string | null) {
 function AppStatusPill({
   label,
   tone = "neutral",
+  color,
 }: {
   label: string;
   tone?: "success" | "warning" | "danger" | "primary" | "neutral";
+  color?: string;
 }) {
+  if (color) {
+    return (
+      <div
+        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide border shadow-sm"
+        style={{
+          backgroundColor: `${color}20`,
+          borderColor: color,
+          color: color,
+        }}
+      >
+        <div
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        {label}
+      </div>
+    );
+  }
+
   return <Badge type={tone as any}>{label}</Badge>;
 }
 
@@ -131,26 +174,58 @@ function InfoCard({
   icon,
   label,
   value,
+  color,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  color?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-3 sm:p-4">
+    <div className="group rounded-2xl border border-gray-100 dark:border-gray-700 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900/30 dark:to-gray-800/50 p-4 transition-all duration-300 hover:shadow-md hover:border-gray-200 dark:hover:border-gray-600">
       <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-white dark:bg-gray-800 p-2 border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 shrink-0">
+        <div
+          className={`rounded-xl ${
+            color ? "bg-white/90" : "bg-white dark:bg-gray-800"
+          } p-2.5 border border-gray-100 dark:border-gray-700 shrink-0 transition-transform duration-300 group-hover:scale-110`}
+          style={color ? { borderColor: color, color: color } : {}}
+        >
           {icon}
         </div>
-        <div className="min-w-0">
-          <p className="text-[11px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 font-medium">
             {label}
           </p>
-          <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white break-words uppercase">
+          <p
+            className="mt-1.5 text-sm font-bold text-gray-900 dark:text-white break-words uppercase leading-tight"
+            style={color ? { color: color } : {}}
+          >
             {value || "—"}
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ColorBadge({
+  colorName,
+  hexCode,
+}: {
+  colorName?: string | null;
+  hexCode?: string | null;
+}) {
+  if (!colorName) return <span className="text-gray-400">—</span>;
+
+  const displayColor = hexCode || "#6B7280";
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      <div
+        className="w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm"
+        style={{ backgroundColor: displayColor }}
+      />
+      <span className="font-semibold uppercase">{colorName}</span>
     </div>
   );
 }
@@ -161,19 +236,22 @@ function RegisteredAttendeeMobileCard({
   item: RegisteredAttendeeRow;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4 bg-gray-50/70 dark:bg-gray-900/20">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-base font-semibold text-gray-900 dark:text-white uppercase break-words">
+    <div className="group rounded-2xl border border-gray-100 dark:border-gray-700 p-5 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900/50 shadow-sm hover:shadow-lg transition-all duration-300">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold text-gray-900 dark:text-white uppercase break-words">
             {toDisplayUpper(item.fullName)}
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 uppercase">
             {toDisplayUpper(item.uniqueId)}
           </p>
         </div>
+        <div className="shrink-0">
+          <AppStatusPill label="REGISTERED" tone="success" />
+        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <InfoCard
           icon={<Phone className="w-4 h-4" />}
           label="PHONE"
@@ -189,6 +267,21 @@ function RegisteredAttendeeMobileCard({
           label="ACCOMMODATION"
           value={toDisplayUpper(item.accommodation)}
         />
+        {item.colorName && (
+          <InfoCard
+            icon={<Palette className="w-4 h-4" />}
+            label="ASSIGNED COLOR"
+            value={toDisplayUpper(item.colorName)}
+            color={item.color || undefined}
+          />
+        )}
+        {item.subClName && (
+          <InfoCard
+            icon={<Users className="w-4 h-4" />}
+            label="SUB COMMUNITY LEADER"
+            value={toDisplayUpper(item.subClName)}
+          />
+        )}
         <InfoCard
           icon={<Hash className="w-4 h-4" />}
           label="SERIAL"
@@ -232,35 +325,42 @@ function RegistrationModal({
   if (!isOpen || !attendee) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
-      <div className="w-full h-[92dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-6xl overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-100 dark:border-gray-700 flex flex-col">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-fadeIn">
+      <div className="w-full h-[95dvh] sm:h-auto sm:max-h-[92vh] sm:max-w-7xl overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-100 dark:border-gray-700 flex flex-col animate-slideUp">
+        {/* Header */}
+        <div className="px-5 sm:px-8 py-5 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-800">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white uppercase">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold uppercase tracking-wide mb-2">
+                <BadgeCheck className="w-3.5 h-3.5" />
+                Registration
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white uppercase">
                 Attendee Registration
               </h3>
-              <p className="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 uppercase leading-relaxed">
-                Confirm attendee details, enter the printed QR serial number,
-                choose accommodation, and complete registration.
+              <p className="mt-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                Confirm details, enter QR serial, and complete registration
               </p>
             </div>
 
             <button
               onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 shrink-0"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="grid grid-cols-1 xl:grid-cols-[1.15fr,0.85fr] gap-6">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-8 bg-gradient-to-br from-gray-50/50 to-white dark:from-gray-900/30 dark:to-gray-800/30">
+          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr,0.8fr] gap-6">
+            {/* Left Column - Attendee Details */}
             <div className="space-y-5">
-              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5 bg-white dark:bg-gray-800">
+              {/* Photo & Main Info */}
+              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-5 sm:p-6 bg-white dark:bg-gray-800 shadow-sm">
                 <div className="flex flex-col md:flex-row gap-5 items-center md:items-start">
-                  <div className="h-32 w-32 sm:h-40 sm:w-40 overflow-hidden rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 flex items-center justify-center shrink-0">
+                  <div className="relative h-36 w-36 sm:h-44 sm:w-44 overflow-hidden rounded-3xl border-4 border-white dark:border-gray-700 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center shrink-0 shadow-lg">
                     {attendee.photoUrl ? (
                       <img
                         src={attendee.photoUrl}
@@ -268,12 +368,12 @@ function RegistrationModal({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <ImageIcon className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400" />
+                      <ImageIcon className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400" />
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1 w-full text-center md:text-left">
-                    <div className="flex flex-wrap gap-2 mb-3 justify-center md:justify-start">
+                    <div className="flex flex-wrap gap-2 mb-4 justify-center md:justify-start">
                       <AppStatusPill
                         label={
                           attendee.isRegistered
@@ -301,11 +401,11 @@ function RegistrationModal({
                       )}
                     </div>
 
-                    <h4 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white break-words uppercase">
+                    <h4 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white break-words uppercase leading-tight">
                       {attendee.fullName}
                     </h4>
 
-                    <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2">
+                    <div className="mt-5 grid gap-3 grid-cols-1 sm:grid-cols-2">
                       <InfoCard
                         icon={<Hash className="w-4 h-4" />}
                         label="UNIQUE ID"
@@ -321,6 +421,7 @@ function RegistrationModal({
                 </div>
               </div>
 
+              {/* Additional Details Grid */}
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                 <InfoCard
                   icon={<UserRound className="w-4 h-4" />}
@@ -331,7 +432,7 @@ function RegistrationModal({
                   icon={<MapPin className="w-4 h-4" />}
                   label="State / LGA"
                   value={toDisplayUpper(
-                    [attendee.state, attendee.lga].filter(Boolean).join(" / "),
+                    [attendee.state, attendee.lga].filter(Boolean).join(" / ")
                   )}
                 />
                 <InfoCard
@@ -340,7 +441,7 @@ function RegistrationModal({
                   value={toDisplayUpper(
                     [attendee.ward, attendee.community]
                       .filter(Boolean)
-                      .join(" / "),
+                      .join(" / ")
                   )}
                 />
                 <InfoCard
@@ -355,13 +456,45 @@ function RegistrationModal({
                 />
               </div>
 
-              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5 bg-gray-50 dark:bg-gray-900/20">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white uppercase">
+              {/* Assignment Info */}
+              {(attendee.color || attendee.subCL) && (
+                <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-5 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase mb-4 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Community Assignment
+                  </h4>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {attendee.color && (
+                      <InfoCard
+                        icon={<Palette className="w-4 h-4" />}
+                        label="ASSIGNED COLOR"
+                        value={toDisplayUpper(attendee.color.name)}
+                        color={attendee.color.hexCode || undefined}
+                      />
+                    )}
+                    {attendee.subCL && (
+                      <InfoCard
+                        icon={<UserCheck className="w-4 h-4" />}
+                        label="SUB COMMUNITY LEADER"
+                        value={toDisplayUpper(
+                          attendee.subCL.name || `SubCL #${attendee.subCL.subClId}`
+                        )}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Assigned Pass Section */}
+              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-5 bg-white dark:bg-gray-800 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase mb-4 flex items-center gap-2">
+                  <BadgeCheck className="w-4 h-4" />
                   Assigned Pass
                 </h4>
 
                 {attendee.assignedPass ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <InfoCard
                       icon={<Hash className="w-4 h-4" />}
                       label="Serial Number"
@@ -376,36 +509,38 @@ function RegistrationModal({
                       icon={<CalendarDays className="w-4 h-4" />}
                       label="Assigned At"
                       value={formatDisplayDateTime(
-                        attendee.assignedPass.assignedAt,
+                        attendee.assignedPass.assignedAt
                       )}
                     />
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm text-gray-600 dark:text-gray-400 uppercase">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 uppercase">
                     No pass assigned yet.
                   </p>
                 )}
               </div>
             </div>
 
+            {/* Right Column - Registration Form */}
             <div className="space-y-5">
-              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-4 sm:p-5 bg-gray-50 dark:bg-gray-900/20">
-                <h4 className="text-lg font-semibold text-gray-900 dark:text-white uppercase">
+              <div className="rounded-3xl border border-gray-100 dark:border-gray-700 p-5 sm:p-6 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 shadow-lg">
+                <h4 className="text-lg font-bold text-gray-900 dark:text-white uppercase flex items-center gap-2">
+                  <BadgeCheck className="w-5 h-5 text-green-600" />
                   Register Attendee
                 </h4>
-                <p className="mt-1 text-xs sm:text-sm text-gray-600 dark:text-gray-400 uppercase leading-relaxed">
+                <p className="mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                   Enter the printed QR serial number and confirm accommodation.
                 </p>
 
-                <div className="mt-5 space-y-4">
+                <div className="mt-6 space-y-5">
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <label className="block mb-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 uppercase">
                       Printed QR Serial Number
                     </label>
                     <div className="relative">
                       <Input
                         ref={serialInputRef}
-                        className="pl-11 h-12 rounded-2xl border-gray-200 dark:border-gray-600 shadow-sm uppercase"
+                        className="pl-12 h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 shadow-sm uppercase text-base font-semibold focus:border-green-500 focus:ring-green-500 transition-all duration-200"
                         placeholder="E.G. EVT2026-000245"
                         value={serialNumber}
                         onChange={(e) =>
@@ -419,18 +554,18 @@ function RegistrationModal({
                         }}
                       />
                       <div className="absolute inset-y-0 left-0 flex items-center ml-4 text-gray-400 pointer-events-none">
-                        <Hash className="w-4 h-4" />
+                        <Hash className="w-5 h-5" />
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300 uppercase">
+                    <label className="block mb-2.5 text-sm font-bold text-gray-700 dark:text-gray-300 uppercase">
                       Accommodation
                     </label>
                     <div className="relative">
                       <Select
-                        className="h-12 rounded-2xl border-gray-200 dark:border-gray-600 shadow-sm uppercase pl-10"
+                        className="h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 shadow-sm uppercase pl-12 text-base font-semibold focus:border-green-500 focus:ring-green-500 transition-all duration-200"
                         value={accommodation}
                         onChange={(e) => setAccommodation(e.target.value)}
                       >
@@ -443,12 +578,13 @@ function RegistrationModal({
                         </option>
                       </Select>
                       <div className="absolute inset-y-0 left-0 flex items-center ml-4 text-gray-400 pointer-events-none">
-                        <Home className="w-4 h-4" />
+                        <Home className="w-5 h-5" />
                       </div>
                     </div>
                   </div>
                 </div>
 
+                {/* Checklist */}
                 <div className="mt-6 space-y-3">
                   {[
                     {
@@ -470,15 +606,25 @@ function RegistrationModal({
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+                      className={`rounded-2xl border-2 p-4 transition-all duration-300 ${
+                        item.ok
+                          ? "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20"
+                          : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         {item.ok ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 animate-scaleIn" />
                         ) : (
-                          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                          <AlertCircle className="w-5 h-5 text-gray-400 shrink-0" />
                         )}
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100 uppercase">
+                        <span
+                          className={`text-sm font-bold uppercase ${
+                            item.ok
+                              ? "text-emerald-800 dark:text-emerald-200"
+                              : "text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
                           {item.label}
                         </span>
                       </div>
@@ -486,28 +632,30 @@ function RegistrationModal({
                   ))}
                 </div>
 
-                {!canRegister ? (
-                  <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 uppercase leading-relaxed">
-                    {attendee.isRegistered
-                      ? "THIS ATTENDEE IS ALREADY REGISTERED."
-                      : "ENTER QR SERIAL NUMBER AND SELECT ACCOMMODATION BEFORE REGISTERING."}
-                  </p>
-                ) : null}
+                {!canRegister && (
+                  <div className="mt-5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-800 dark:text-amber-200 uppercase leading-relaxed font-medium">
+                      {attendee.isRegistered
+                        ? "⚠️ THIS ATTENDEE IS ALREADY REGISTERED."
+                        : "⚠️ ENTER QR SERIAL NUMBER AND SELECT ACCOMMODATION BEFORE REGISTERING."}
+                    </p>
+                  </div>
+                )}
 
                 <div className="mt-6">
                   <Button
                     type="button"
                     disabled={!canRegister}
-                    className="rounded-2xl h-12 w-full bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800 disabled:opacity-60"
+                    className="rounded-2xl h-14 w-full bg-gradient-to-r from-green-600 to-emerald-600 border-0 hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
                     onClick={onRegister}
                   >
-                    <span className="inline-flex items-center gap-2 uppercase">
+                    <span className="inline-flex items-center justify-center gap-3 uppercase font-bold text-base">
                       {registering ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
-                        <BadgeCheck className="w-4 h-4" />
+                        <BadgeCheck className="w-5 h-5" />
                       )}
-                      Register Attendee
+                      {registering ? "Registering..." : "Register Attendee"}
                     </span>
                   </Button>
                 </div>
@@ -549,10 +697,10 @@ export default function RegistrationDeskPage() {
   const canRegister = useMemo(() => {
     return Boolean(
       attendee &&
-      serialNumber.trim() &&
-      accommodation.trim() &&
-      !attendee.isRegistered &&
-      !registering,
+        serialNumber.trim() &&
+        accommodation.trim() &&
+        !attendee.isRegistered &&
+        !registering
     );
   }, [attendee, serialNumber, accommodation, registering]);
 
@@ -565,11 +713,15 @@ export default function RegistrationDeskPage() {
       const fullName = item.fullName?.toLowerCase() || "";
       const phone = item.phone?.toLowerCase() || "";
       const serialNumber = item.serialNumber?.toLowerCase() || "";
+      const colorName = item.colorName?.toLowerCase() || "";
+      const subClName = item.subClName?.toLowerCase() || "";
 
       return (
         fullName.includes(term) ||
         phone.includes(term) ||
-        serialNumber.includes(term)
+        serialNumber.includes(term) ||
+        colorName.includes(term) ||
+        subClName.includes(term)
       );
     });
   }, [registeredAttendees, registeredSearch]);
@@ -578,7 +730,7 @@ export default function RegistrationDeskPage() {
     const start = (registeredPage - 1) * registeredResultsPerPage;
     return filteredRegisteredAttendees.slice(
       start,
-      start + registeredResultsPerPage,
+      start + registeredResultsPerPage
     );
   }, [filteredRegisteredAttendees, registeredPage, registeredResultsPerPage]);
 
@@ -598,7 +750,7 @@ export default function RegistrationDeskPage() {
   useEffect(() => {
     const totalPages = Math.max(
       1,
-      Math.ceil(filteredRegisteredAttendees.length / registeredResultsPerPage),
+      Math.ceil(filteredRegisteredAttendees.length / registeredResultsPerPage)
     );
 
     if (registeredPage > totalPages) {
@@ -614,7 +766,7 @@ export default function RegistrationDeskPage() {
     try {
       setLoadingRegistered(true);
       const { data } = await api.get<ApiSuccess<RegisteredAttendeesResponse>>(
-        `/events/${eventId}/registered-attendees`,
+        `/events/${eventId}/registered-attendees`
       );
       setRegisteredAttendees(data.data.attendees || []);
     } catch (err: any) {
@@ -665,7 +817,7 @@ export default function RegistrationDeskPage() {
         {
           q: searchQuery.trim(),
           eventId,
-        },
+        }
       );
 
       const nextAttendee = {
@@ -729,6 +881,8 @@ export default function RegistrationDeskPage() {
             isAssigned: boolean;
             assignedAt: string | null;
           };
+          color: ColorData;
+          subCL: SubCLData;
         }>
       >(`/events/${eventId}/registrations`, {
         attendeeId: attendee.attendeeId,
@@ -736,9 +890,16 @@ export default function RegistrationDeskPage() {
         accommodation: accommodation.trim(),
       });
 
+      const colorInfo = data.data.color
+        ? ` | Color: ${data.data.color.name}`
+        : "";
+      const subCLInfo = data.data.subCL
+        ? ` | SubCL: ${data.data.subCL.name || `#${data.data.subCL.subClId}`}`
+        : "";
+
       toast.success(
-        data.message ||
-          `${data.data.attendee.fullName} registered successfully.`,
+        `${data.data.attendee.fullName} registered successfully!${colorInfo}${subCLInfo}`,
+        { duration: 5000 }
       );
 
       await fetchRegisteredAttendees();
@@ -771,56 +932,105 @@ export default function RegistrationDeskPage() {
 
   return (
     <Layout>
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes scaleIn {
+          from {
+            transform: scale(0);
+          }
+          to {
+            transform: scale(1);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .animate-slideUp {
+          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .animate-scaleIn {
+          animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @media (max-width: 640px) {
+          .animate-slideUp {
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+        }
+      `}</style>
+
       <div className="mb-6 sm:mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <PageTitle>Registration Desk</PageTitle>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-              Search attendees, open their details in a modal, enter a printed
-              QR serial number, confirm accommodation, and register them on
-              arrival.
+              Search attendees, verify details, assign QR passes, and register
+              participants with automatic color and SubCL assignment.
             </p>
           </div>
 
           <Button
             layout="outline"
-            className="rounded-2xl h-11 w-full sm:w-auto"
+            className="rounded-2xl h-12 w-full sm:w-auto border-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
             onClick={resetAll}
           >
-            <span className="inline-flex items-center justify-center gap-2 w-full">
+            <span className="inline-flex items-center justify-center gap-2 w-full font-semibold">
               <RefreshCcw className="w-4 h-4" />
               Reset
             </span>
           </Button>
         </div>
 
-        <div className="mt-4 rounded-3xl overflow-hidden bg-gradient-to-r from-green-900 via-green-800 to-green-700 shadow-xl">
-          <div className="px-4 py-5 sm:px-8 sm:py-8 text-white">
+        {/* <div className="mt-6 rounded-3xl overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 shadow-2xl">
+          <div className="px-6 py-8 sm:px-10 sm:py-12 text-white">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-[11px] sm:text-xs font-semibold tracking-wide uppercase">
-                Event Registration
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-4 py-2 text-xs font-bold tracking-wide uppercase border border-white/30">
+                <BadgeCheck className="w-4 h-4" />
+                Event Registration System
               </div>
 
-              <h2 className="mt-4 text-xl sm:text-3xl font-bold leading-tight">
-                Fast attendee check-in and QR pass assignment
+              <h2 className="mt-5 text-2xl sm:text-4xl font-bold leading-tight">
+                Fast Check-In & Community Assignment
               </h2>
 
-              <p className="mt-3 text-sm sm:text-base text-green-100 leading-6">
-                Search by phone number or unique ID, review the attendee record
-                in a modal, enter the printed QR serial number, confirm
-                accommodation, and complete registration quickly.
+              <p className="mt-4 text-sm sm:text-base text-green-50 leading-7">
+                Streamlined registration with automatic color group and
+                sub-community leader assignment. Search, verify, and register
+                attendees in seconds.
               </p>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
 
-      <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-5">
-        <div className="mb-5">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+      {/* Search Section */}
+      <div className="rounded-3xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 shadow-xl p-6 sm:p-8">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <Search className="w-5 h-5 text-green-600" />
             Search Attendee
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 uppercase leading-relaxed">
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
             Find the attendee by phone number or unique ID. Details will open in
             a modal.
           </p>
@@ -828,20 +1038,20 @@ export default function RegistrationDeskPage() {
 
         <form onSubmit={handleSearchAttendee} className="space-y-5">
           <div>
-            <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="block mb-3 text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
               Phone Number or Unique ID
             </label>
 
             <div className="relative">
               <Input
                 ref={searchInputRef}
-                className="pl-11 h-12 rounded-2xl border-gray-200 dark:border-gray-600 shadow-sm"
-                placeholder="e.g. 08031234567 or REG-1022"
+                className="pl-12 h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 shadow-sm text-base font-semibold focus:border-green-500 focus:ring-green-500 transition-all duration-200"
+                placeholder="e.g. 08031234567 or ISM/B2/M/00001"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <div className="absolute inset-y-0 left-0 flex items-center ml-4 text-gray-400 pointer-events-none">
-                <Search className="w-4 h-4" />
+                <Search className="w-5 h-5" />
               </div>
             </div>
           </div>
@@ -849,82 +1059,84 @@ export default function RegistrationDeskPage() {
           <Button
             type="submit"
             disabled={searching}
-            className="rounded-2xl h-12 w-full sm:w-auto bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800"
+            className="rounded-2xl h-14 w-full sm:w-auto bg-gradient-to-r from-green-600 to-emerald-600 border-0 hover:from-green-700 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span className="inline-flex items-center justify-center gap-2 w-full">
+            <span className="inline-flex items-center justify-center gap-3 w-full font-bold text-base uppercase">
               {searching ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                <Search className="w-4 h-4" />
+                <Search className="w-5 h-5" />
               )}
-              Search Attendee
+              {searching ? "Searching..." : "Search Attendee"}
             </span>
           </Button>
         </form>
 
-        {attendee ? (
-          <div className="mt-5 rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 uppercase">
+        {attendee && (
+          <div className="mt-6 rounded-2xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-5">
+            <p className="text-xs text-green-700 dark:text-green-300 uppercase font-bold mb-2">
               Last Loaded Attendee
             </p>
-            <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white uppercase break-words">
+            <p className="text-xl font-bold text-gray-900 dark:text-white uppercase break-words">
               {attendee.fullName}
             </p>
-            <div className="mt-3">
+            <div className="mt-4">
               <Button
                 type="button"
-                className="rounded-2xl h-11 w-full sm:w-auto bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800"
+                className="rounded-2xl h-12 w-full sm:w-auto bg-gradient-to-r from-green-600 to-emerald-600 border-0 hover:from-green-700 hover:to-emerald-700 shadow-md"
                 onClick={() => setIsModalOpen(true)}
               >
-                Open Registration Modal
+                <span className="font-bold">Open Registration Modal</span>
               </Button>
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
-      <div className="mt-6 rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-5">
-        <div className="flex flex-col gap-4 mb-5">
+      {/* Registered Attendees Section */}
+      <div className="mt-8 rounded-3xl bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 shadow-xl p-6 sm:p-8">
+        <div className="flex flex-col gap-4 mb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Users className="w-5 h-5 text-green-600" />
                 Registered Attendees
               </h3>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 uppercase leading-relaxed">
-                Search and browse registered attendees by name, phone number, or
-                serial number.
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                Browse and search all registered attendees with their assigned
+                colors and SubCLs.
               </p>
             </div>
 
             <Button
               type="button"
               layout="outline"
-              className="rounded-2xl h-10 w-full sm:w-auto"
+              className="rounded-2xl h-11 w-full sm:w-auto border-2 hover:bg-gray-50 dark:hover:bg-gray-700"
               onClick={fetchRegisteredAttendees}
             >
-              Refresh
+              <span className="font-semibold">Refresh</span>
             </Button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block mb-3 text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                 Search Registered Attendees
               </label>
               <div className="relative">
                 <Input
-                  className="pl-11 h-12 rounded-2xl border-gray-200 dark:border-gray-600 shadow-sm"
-                  placeholder="Search by name, phone number or serial number"
+                  className="pl-12 h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 shadow-sm text-base font-semibold focus:border-green-500 focus:ring-green-500"
+                  placeholder="Search by name, phone, serial, color, or SubCL"
                   value={registeredSearch}
                   onChange={(e) => setRegisteredSearch(e.target.value)}
                 />
                 <div className="absolute inset-y-0 left-0 flex items-center ml-4 text-gray-400 pointer-events-none">
-                  <Search className="w-4 h-4" />
+                  <Search className="w-5 h-5" />
                 </div>
               </div>
             </div>
 
-            <div className="text-sm text-gray-600 dark:text-gray-400 uppercase">
+            <div className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-700 text-sm font-bold text-gray-700 dark:text-gray-300 uppercase text-center">
               {loadingRegistered
                 ? "Loading..."
                 : `${filteredRegisteredAttendees.length} result${
@@ -934,14 +1146,21 @@ export default function RegistrationDeskPage() {
           </div>
         </div>
 
+        {/* Mobile Cards */}
         <div className="block lg:hidden">
           {loadingRegistered ? (
-            <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400 uppercase">
-              Loading registered attendees...
+            <div className="py-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-green-600" />
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                Loading registered attendees...
+              </p>
             </div>
           ) : filteredRegisteredAttendees.length === 0 ? (
-            <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400 uppercase">
-              No matching registered attendees found.
+            <div className="py-12 text-center">
+              <AlertCircle className="w-12 h-12 mx-auto text-gray-400" />
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 uppercase font-semibold">
+                No matching registered attendees found.
+              </p>
             </div>
           ) : (
             <>
@@ -954,7 +1173,7 @@ export default function RegistrationDeskPage() {
                 ))}
               </div>
 
-              <div className="mt-5">
+              <div className="mt-6">
                 <Pagination
                   totalResults={filteredRegisteredAttendees.length}
                   resultsPerPage={registeredResultsPerPage}
@@ -966,48 +1185,57 @@ export default function RegistrationDeskPage() {
           )}
         </div>
 
+        {/* Desktop Table */}
         <div className="hidden lg:block w-full overflow-x-auto">
-          <table className="w-full min-w-[820px]">
+          <table className="w-full min-w-[1000px]">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                <th className="py-3 pr-4">Name</th>
-                <th className="py-3 pr-4">Unique ID</th>
-                <th className="py-3 pr-4">Phone</th>
-                <th className="py-3 pr-4">Gender</th>
-                <th className="py-3 pr-4">Accommodation</th>
-                <th className="py-3 pr-4">Serial</th>
-                <th className="py-3 pr-0">Registered At</th>
+              <tr className="text-left text-xs uppercase tracking-wide font-bold text-gray-600 dark:text-gray-400 border-b-2 border-gray-200 dark:border-gray-700">
+                <th className="py-4 pr-4">Name</th>
+                <th className="py-4 pr-4">Unique ID</th>
+                <th className="py-4 pr-4">Phone</th>
+                <th className="py-4 pr-4">Gender</th>
+                <th className="py-4 pr-4">Accommodation</th>
+                <th className="py-4 pr-4">Color</th>
+                <th className="py-4 pr-4">SubCL</th>
+                <th className="py-4 pr-4">Serial</th>
+                <th className="py-4 pr-0">Registered At</th>
               </tr>
             </thead>
             <tbody>
               {loadingRegistered ? (
                 <tr>
                   <td
-                    colSpan={7}
-                    className="py-8 text-center text-sm text-gray-500 dark:text-gray-400 uppercase"
+                    colSpan={9}
+                    className="py-12 text-center text-sm text-gray-500 dark:text-gray-400 uppercase"
                   >
-                    Loading registered attendees...
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-green-600" />
+                    <p className="mt-4 font-semibold">
+                      Loading registered attendees...
+                    </p>
                   </td>
                 </tr>
               ) : filteredRegisteredAttendees.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
-                    className="py-8 text-center text-sm text-gray-500 dark:text-gray-400 uppercase"
+                    colSpan={9}
+                    className="py-12 text-center text-sm text-gray-500 dark:text-gray-400 uppercase"
                   >
-                    No matching registered attendees found.
+                    <AlertCircle className="w-12 h-12 mx-auto text-gray-400" />
+                    <p className="mt-4 font-semibold">
+                      No matching registered attendees found.
+                    </p>
                   </td>
                 </tr>
               ) : (
                 paginatedRegisteredAttendees.map((item) => (
                   <tr
                     key={item.attendeeId}
-                    className="border-b border-gray-100 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300"
+                    className="border-b border-gray-100 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
                   >
-                    <td className="py-4 pr-4 font-semibold uppercase whitespace-nowrap">
+                    <td className="py-4 pr-4 font-bold uppercase whitespace-nowrap">
                       {toDisplayUpper(item.fullName)}
                     </td>
-                    <td className="py-4 pr-4 uppercase whitespace-nowrap">
+                    <td className="py-4 pr-4 uppercase whitespace-nowrap font-medium">
                       {toDisplayUpper(item.uniqueId)}
                     </td>
                     <td className="py-4 pr-4 uppercase whitespace-nowrap">
@@ -1019,10 +1247,19 @@ export default function RegistrationDeskPage() {
                     <td className="py-4 pr-4 uppercase whitespace-nowrap">
                       {toDisplayUpper(item.accommodation)}
                     </td>
-                    <td className="py-4 pr-4 uppercase whitespace-nowrap">
+                    <td className="py-4 pr-4 whitespace-nowrap">
+                      <ColorBadge
+                        colorName={item.color}
+                        hexCode={item.color}
+                      />
+                    </td>
+                    <td className="py-4 pr-4 uppercase whitespace-nowrap font-medium">
+                      {toDisplayUpper(item.subcl)}
+                    </td>
+                    <td className="py-4 pr-4 uppercase whitespace-nowrap font-mono text-xs">
                       {toDisplayUpper(item.serialNumber)}
                     </td>
-                    <td className="py-4 pr-0 uppercase whitespace-nowrap">
+                    <td className="py-4 pr-0 uppercase whitespace-nowrap text-xs">
                       {formatDisplayDateTime(item.registeredAt)}
                     </td>
                   </tr>
@@ -1031,8 +1268,8 @@ export default function RegistrationDeskPage() {
             </tbody>
           </table>
 
-          {!loadingRegistered && filteredRegisteredAttendees.length > 0 ? (
-            <div className="mt-5">
+          {!loadingRegistered && filteredRegisteredAttendees.length > 0 && (
+            <div className="mt-6">
               <Pagination
                 totalResults={filteredRegisteredAttendees.length}
                 resultsPerPage={registeredResultsPerPage}
@@ -1040,7 +1277,7 @@ export default function RegistrationDeskPage() {
                 label="Registered attendees navigation"
               />
             </div>
-          ) : null}
+          )}
         </div>
       </div>
 
