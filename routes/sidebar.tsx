@@ -11,6 +11,8 @@ import {
   TabletIcon,
   SyringeIcon,
   DoorOpenIcon,
+  Group,
+  GroupIcon,
 } from "lucide-react";
 import { ComponentType } from "react";
 
@@ -48,6 +50,11 @@ const routes: IRoute[] = [
     path: "/issam/events",
     icon: CalendarDays,
     name: "Events",
+  },
+   {
+    path: "/issam/color-groups",
+    icon: GroupIcon,
+    name: "Color Groups",
   },
   {
     path: "/issam/registration",

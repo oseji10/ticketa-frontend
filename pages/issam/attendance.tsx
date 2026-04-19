@@ -82,10 +82,23 @@ type AttendanceRecord = {
     firstName?: string;
     lastName?: string;
     name?: string;
+    fullName?: string;
     uniqueId?: string;
     phone?: string;
     gender?: string;
+    photoUrl?: string;
     passportUrl?: string;
+    color?: {
+      colorId?: number;
+      colorName?: string;
+      hexCode?: string;
+    };
+    subcl?: {
+      subClId?: number;
+      state?: string;
+      lga?: string;
+      ward?: string;
+    };
   };
   pass?: {
     passId?: number;
@@ -252,20 +265,29 @@ function getTodayDateValue() {
 }
 
 function getAttendeeName(record: AttendanceRecord) {
-  return (
+  const name =
     record.attendee?.name ||
-    `${record.attendee?.firstName || ""} ${record.attendee?.lastName || ""}`.trim() ||
-    "Unknown attendee"
-  );
+    record.attendee?.fullName ||
+    "Unknown attendee";
+
+  return name.toUpperCase();
+}
+
+function getAttendeeLga(record: AttendanceRecord) {
+  const name =
+    record.attendee?.lga 
+    "Unknown LGA";
+
+  return name.toUpperCase();
 }
 
 function PassportAvatar({
   name,
-  passportUrl,
+  photoUrl,
   size = "md",
 }: {
   name: string;
-  passportUrl?: string;
+  photoUrl?: string;
   size?: "sm" | "md" | "lg";
 }) {
   const sizeClass =
@@ -275,12 +297,12 @@ function PassportAvatar({
         ? "h-16 w-16 rounded-2xl"
         : "h-12 w-12 rounded-2xl";
 
-  return passportUrl ? (
-    <img
-      src={passportUrl}
-      alt={name}
-      className={`${sizeClass} object-cover border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 shrink-0`}
-    />
+  return photoUrl ? (
+<img
+  src={photoUrl || "/default-avatar.png"}
+  alt={name}
+  className={`${sizeClass} object-cover border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 shrink-0`}
+/>
   ) : (
     <div
       className={`${sizeClass} flex items-center justify-center border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-400 shrink-0`}
@@ -718,7 +740,7 @@ export default function AttendanceScannerPage() {
                     <div className="flex items-start gap-3">
                       <PassportAvatar
                         name={attendeeName}
-                        passportUrl={record.attendee?.passportUrl}
+                        photoUrl={record.attendee?.photoUrl}
                         size="lg"
                       />
                       <div className="min-w-0 flex-1">
@@ -768,7 +790,8 @@ export default function AttendanceScannerPage() {
       </div>
 
       {/* ====================== DESKTOP LAYOUT ====================== */}
-      <div className="hidden sm:grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr,0.9fr]">
+      <div className="hidden sm:block space-y-5">
+        {/* Scanner Section */}
         <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -814,7 +837,7 @@ export default function AttendanceScannerPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr,250px]">
+          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr,380px]">
             <div>
               <div className="rounded-3xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-2 sm:p-3 overflow-hidden">
                 {isScannerRunning ? (
@@ -923,126 +946,154 @@ export default function AttendanceScannerPage() {
           </div>
         </div>
 
-        {/* Guide + Register Sidebar */}
-        <div className="space-y-5">
-          <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-5">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-gray-500" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Guide</h3>
+        {/* Attendance Guide */}
+        <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-5">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-gray-500" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Guide</h3>
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex gap-3">
+              <CalendarDays className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
+              <p>Attendance is marked once per attendee per selected day.</p>
             </div>
-            <div className="mt-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-              <div className="flex gap-3">
-                <CalendarDays className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>Attendance is marked once per attendee per selected day.</p>
+            <div className="flex gap-3">
+              <UserCheck className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
+              <p>If a pass is scanned again on the same day, it will show already marked.</p>
+            </div>
+            <div className="flex gap-3">
+              <ScanLine className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
+              <p>Use manual entry only when the printed QR or barcode is damaged.</p>
+            </div>
+            <div className="flex gap-3">
+              <Users className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
+              <p>After every scan, tap OK on the popup to continue scanning.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Wide Attendance Register Table */}
+        <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-gray-500" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Register</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 px-4 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Current Device</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {deviceName || "Unnamed scanner"}
+                </p>
               </div>
-              <div className="flex gap-3">
-                <UserCheck className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>If a pass is scanned again on the same day, it will show already marked.</p>
-              </div>
-              <div className="flex gap-3">
-                <ScanLine className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>Use manual entry only when the printed QR or barcode is damaged.</p>
-              </div>
-              <div className="flex gap-3">
-                <Users className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-                <p>After every scan, tap OK on the popup to continue scanning.</p>
-              </div>
+              <Button layout="outline" className="rounded-2xl h-10" onClick={() => loadAttendanceRecords(currentPage)}>
+                <RefreshCcw className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-gray-500" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Attendance Register</h3>
-              </div>
-              <Button layout="outline" className="rounded-2xl h-10" onClick={() => loadAttendanceRecords(currentPage)}>
-                Refresh
-              </Button>
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700">
-              <div className="max-h-[520px] overflow-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900/40">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-700">
+            <div className="max-h-[600px] overflow-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900/40 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Passport</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Attendee</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Unique ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">LGA</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Color</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Sub-CL</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Time Marked</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
+                  {loadingRecords ? (
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Passport</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Attendee</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Unique ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Time Marked</th>
+                      <td colSpan={6} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        Loading attendance records...
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                    {loadingRecords ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
-                          Loading attendance records...
-                        </td>
-                      </tr>
-                    ) : attendanceRecords.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
-                          No attendance records found for this date.
-                        </td>
-                      </tr>
-                    ) : (
-                      attendanceRecords.map((record) => {
-                        const attendeeName = getAttendeeName(record);
-                        return (
-                          <tr key={record.attendanceId}>
-                            <td className="px-4 py-3">
-                              <PassportAvatar
-                                name={attendeeName}
-                                passportUrl={record.attendee?.passportUrl}
-                                size="md"
+                  ) : attendanceRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No attendance records found for this date.
+                      </td>
+                    </tr>
+                  ) : (
+                    attendanceRecords.map((record) => {
+                      const attendeeName = getAttendeeName(record);
+                      const attendeeLga = getAttendeeLga(record);
+                      const colorName = record.attendee?.color?.colorName || "—";
+                      const colorHex = record.attendee?.color?.hexCode || "#6B7280";
+                      const subClName = record.attendee?.subcl ? 
+                        `${record.attendee.subcl.state || ""} - ${record.attendee.subcl.lga || ""}`.trim() || "—" : "—";
+                      
+                      return (
+                        <tr key={record.attendanceId}>
+                          <td className="px-4 py-3">
+                            <PassportAvatar
+                              name={attendeeName}
+                              photoUrl={record.attendee?.photoUrl}
+                              size="md"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{attendeeName}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {record.attendee?.uniqueId || "—"}
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {attendeeLga || "—"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="inline-flex items-center gap-2">
+                              <div 
+                                className="w-4 h-4 rounded-full border-2 border-gray-200 dark:border-gray-600"
+                                style={{ backgroundColor: colorHex }}
                               />
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{attendeeName}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                              {record.attendee?.uniqueId || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                              {formatDisplayDateTime(record.markedAt)}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                              <span className="text-sm text-gray-900 dark:text-white font-medium">
+                                {colorName}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {subClName}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                            {formatDisplayDateTime(record.markedAt)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
+          </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-500 dark:text-gray-400">{paginationMetaText}</p>
-              <div className="flex items-center gap-2">
-                <Button
-                  layout="outline"
-                  className="rounded-2xl h-10 px-4"
-                  disabled={currentPage <= 1 || loadingRecords}
-                  onClick={() => loadAttendanceRecords(currentPage - 1)}
-                >
-                  <ChevronLeft className="w-4 h-4" /> Prev
-                </Button>
-                <span className="text-sm text-gray-600 dark:text-gray-300">
-                  Page {currentPage} of {lastPage}
-                </span>
-                <Button
-                  layout="outline"
-                  className="rounded-2xl h-10 px-4"
-                  disabled={currentPage >= lastPage || loadingRecords}
-                  onClick={() => loadAttendanceRecords(currentPage + 1)}
-                >
-                  Next <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Current Device</p>
-              <p className="mt-2 font-semibold text-gray-900 dark:text-white break-words">
-                {deviceName || "Unnamed scanner"}
-              </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{paginationMetaText}</p>
+            <div className="flex items-center gap-2">
+              <Button
+                layout="outline"
+                className="rounded-2xl h-10 px-4"
+                disabled={currentPage <= 1 || loadingRecords}
+                onClick={() => loadAttendanceRecords(currentPage - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </Button>
+              <span className="text-sm text-gray-600 dark:text-gray-300">
+                Page {currentPage} of {lastPage}
+              </span>
+              <Button
+                layout="outline"
+                className="rounded-2xl h-10 px-4"
+                disabled={currentPage >= lastPage || loadingRecords}
+                onClick={() => loadAttendanceRecords(currentPage + 1)}
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>

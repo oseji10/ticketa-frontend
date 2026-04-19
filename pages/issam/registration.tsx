@@ -97,9 +97,9 @@ type RegisteredAttendeeRow = {
   phone: string | null;
   gender: string | null;
   accommodation: string | null;
-  color?: string | null;
-  colorName?: string | null;
-  subClName?: string | null;
+  color: string | null; // This is colorName from backend
+  colorHex: string | null; // This is hexCode from backend
+  subcl: string | null; // This is SubCL full name from backend
   serialNumber: string | null;
   registeredAt: string | null;
 };
@@ -267,19 +267,19 @@ function RegisteredAttendeeMobileCard({
           label="ACCOMMODATION"
           value={toDisplayUpper(item.accommodation)}
         />
-        {item.colorName && (
+        {item.color && (
           <InfoCard
             icon={<Palette className="w-4 h-4" />}
             label="ASSIGNED COLOR"
-            value={toDisplayUpper(item.colorName)}
-            color={item.color || undefined}
+            value={toDisplayUpper(item.color)}
+            color={item.colorHex || undefined}
           />
         )}
-        {item.subClName && (
+        {item.subcl && (
           <InfoCard
             icon={<Users className="w-4 h-4" />}
             label="SUB COMMUNITY LEADER"
-            value={toDisplayUpper(item.subClName)}
+            value={toDisplayUpper(item.subcl)}
           />
         )}
         <InfoCard
@@ -712,16 +712,18 @@ export default function RegistrationDeskPage() {
     return registeredAttendees.filter((item) => {
       const fullName = item.fullName?.toLowerCase() || "";
       const phone = item.phone?.toLowerCase() || "";
+      const uniqueId = item.uniqueId?.toLowerCase() || "";
       const serialNumber = item.serialNumber?.toLowerCase() || "";
-      const colorName = item.colorName?.toLowerCase() || "";
-      const subClName = item.subClName?.toLowerCase() || "";
+      const color = item.color?.toLowerCase() || "";
+      const subcl = item.subcl?.toLowerCase() || "";
 
       return (
         fullName.includes(term) ||
         phone.includes(term) ||
+        uniqueId.includes(term) ||
         serialNumber.includes(term) ||
-        colorName.includes(term) ||
-        subClName.includes(term)
+        color.includes(term) ||
+        subcl.includes(term)
       );
     });
   }, [registeredAttendees, registeredSearch]);
@@ -1000,27 +1002,6 @@ export default function RegistrationDeskPage() {
             </span>
           </Button>
         </div>
-
-        {/* <div className="mt-6 rounded-3xl overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 shadow-2xl">
-          <div className="px-6 py-8 sm:px-10 sm:py-12 text-white">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-4 py-2 text-xs font-bold tracking-wide uppercase border border-white/30">
-                <BadgeCheck className="w-4 h-4" />
-                Event Registration System
-              </div>
-
-              <h2 className="mt-5 text-2xl sm:text-4xl font-bold leading-tight">
-                Fast Check-In & Community Assignment
-              </h2>
-
-              <p className="mt-4 text-sm sm:text-base text-green-50 leading-7">
-                Streamlined registration with automatic color group and
-                sub-community leader assignment. Search, verify, and register
-                attendees in seconds.
-              </p>
-            </div>
-          </div>
-        </div> */}
       </div>
 
       {/* Search Section */}
@@ -1126,7 +1107,7 @@ export default function RegistrationDeskPage() {
               <div className="relative">
                 <Input
                   className="pl-12 h-14 rounded-2xl border-2 border-gray-200 dark:border-gray-600 shadow-sm text-base font-semibold focus:border-green-500 focus:ring-green-500"
-                  placeholder="Search by name, phone, serial, color, or SubCL"
+                  placeholder="Search by name, phone, unique ID, serial, color, or SubCL"
                   value={registeredSearch}
                   onChange={(e) => setRegisteredSearch(e.target.value)}
                 />
@@ -1250,7 +1231,7 @@ export default function RegistrationDeskPage() {
                     <td className="py-4 pr-4 whitespace-nowrap">
                       <ColorBadge
                         colorName={item.color}
-                        hexCode={item.color}
+                        hexCode={item.colorHex}
                       />
                     </td>
                     <td className="py-4 pr-4 uppercase whitespace-nowrap font-medium">

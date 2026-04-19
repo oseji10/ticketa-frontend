@@ -31,7 +31,7 @@ const nextConfig = {
   //   domains: [], // Add your image domains here
   // },
   
-  allowedDevOrigins: ['https://otiosely-chronological-cari.ngrok-free.dev'],
+  allowedDevOrigins: ['https://ticketa-api.gradelytics.com.ng'],
 
 }
 
