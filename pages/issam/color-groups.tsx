@@ -616,6 +616,11 @@ export default function ColorGroupsDashboard() {
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
                             {participant.uniqueId}
+                            {participant.age && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {participant.serialNumber}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
