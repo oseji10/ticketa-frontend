@@ -16,6 +16,9 @@ import {
   KeyRound,
   FileSignature,
   ShieldAlert,
+  TrendingUp,
+  TrendingDown,
+  Activity,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -24,7 +27,10 @@ import api from "@/lib/api";
 type SupervisorRow = {
   supervisorId: number;
   supervisorName: string;
+  subClId: number;
   attendanceCount: number;
+  totalAssigned: number;
+  attendancePercent: number;
   status: "High Activity" | "Active" | "Low Activity";
 };
 
@@ -288,7 +294,6 @@ export default function Dashboard() {
   const genderRef = useRef<HTMLCanvasElement>(null);
   const opsRef = useRef<HTMLCanvasElement>(null);
   const trendRef = useRef<HTMLCanvasElement>(null);
-  const supBarRef = useRef<HTMLCanvasElement>(null);
 
   // ── Normalise API payload ─────────────────────────────────────────────────
 
@@ -371,6 +376,13 @@ export default function Dashboard() {
 
   const roomsAssigned = roomMetrics.find((r) => r.metric.toLowerCase().includes("assign"))?.value ?? 0;
   const roomsChecked  = roomMetrics.find((r) => r.metric.toLowerCase().includes("check"))?.value  ?? 0;
+
+  // Calculate supervisor metrics
+  const totalScans = supervisorRows.reduce((sum, s) => sum + s.attendanceCount, 0);
+  const avgScansPerSupervisor = supervisorRows.length > 0 ? Math.round(totalScans / supervisorRows.length) : 0;
+  const highActivityCount = supervisorRows.filter(s => s.status === "High Activity").length;
+  const activeCount = supervisorRows.filter(s => s.status === "Active").length;
+  const lowActivityCount = supervisorRows.filter(s => s.status === "Low Activity").length;
 
   const isDark      = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
   const gridColor   = isDark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.06)";
@@ -479,32 +491,6 @@ export default function Dashboard() {
     },
   }, [trend, chartReady]);
 
-  useChart(supBarRef, {
-    type: "bar",
-    data: {
-      labels: supervisorRows.slice(0, 8).map((s) => s.supervisorName),
-      datasets: [{ data: supervisorRows.slice(0, 8).map((s) => s.attendanceCount), backgroundColor: "#059669", borderRadius: 4, barPercentage: 0.6 }],
-    },
-    options: {
-      indexAxis: "y",
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: tickColor, font: { size: 11 } }, grid: { color: gridColor }, border: { display: false } },
-        y: {
-          ticks: {
-            color: tickColor, font: { size: 11 },
-            callback: (_v: any, i: number) => {
-              const name = supervisorRows[i]?.supervisorName ?? "";
-              return name.length > 14 ? name.slice(0, 14) + "…" : name;
-            },
-          },
-          grid: { display: false },
-        },
-      },
-    },
-  }, [supervisorRows, chartReady]);
-
   // ── Loading state ─────────────────────────────────────────────────────────
 
   if (loading) {
@@ -605,6 +591,85 @@ export default function Dashboard() {
           icon={<AlertTriangle className="w-5 h-5 text-amber-500" />}
           onClick={() => goToOverviewDetail(statOrFallback("Open Incidents", openIncidents))}
         />
+      </div>
+
+      {/* Supervisor Activity Summary Cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-emerald-600" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="pl-2">
+              <p className="text-xs uppercase tracking-wide font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Active Sub-CLs
+              </p>
+              <h3 className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
+                {supervisorRows.length}
+              </h3>
+              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">Total supervisors</p>
+            </div>
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-600/20">
+              <Users className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-blue-600" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="pl-2">
+              <p className="text-xs uppercase tracking-wide font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Total Scans
+              </p>
+              <h3 className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
+                {totalScans}
+              </h3>
+              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">All attendance scans</p>
+            </div>
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-blue-600/20">
+              <Activity className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-violet-600" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="pl-2">
+              <p className="text-xs uppercase tracking-wide font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Avg Scans/Sub-CL
+              </p>
+              <h3 className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
+                {avgScansPerSupervisor}
+              </h3>
+              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">Per supervisor average</p>
+            </div>
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-violet-600/20">
+              <TrendingUp className="w-5 h-5 text-violet-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5">
+          <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl bg-amber-600" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="pl-2">
+              <p className="text-xs uppercase tracking-wide font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Activity Status
+              </p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-emerald-600">{highActivityCount}</span>
+                <span className="text-sm text-gray-400">/</span>
+                <span className="text-sm font-semibold text-blue-500">{activeCount}</span>
+                <span className="text-sm text-gray-400">/</span>
+                <span className="text-sm font-semibold text-amber-500">{lowActivityCount}</span>
+              </div>
+              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">High / Active / Low</p>
+            </div>
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-amber-600/20">
+              <TrendingDown className="w-5 h-5 text-amber-600" />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Secondary overviewStats grid — remaining stats, all clickable */}
@@ -713,28 +778,84 @@ export default function Dashboard() {
       {/* Bottom row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
 
-        {/* Supervisor horizontal bar chart */}
-        <div className="xl:col-span-2 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-5">
-          <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-1">Sub-CL attendance activity</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Attendance scans per Sub-CL · selected date</p>
+        {/* All Supervisors Table - scrollable */}
+        <div className="xl:col-span-2 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+              All Sub-CL Attendance Activity
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Complete list of attendance scans by Sub-CL · selected date
+            </p>
+          </div>
           {supervisorRows.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No supervisor activity for this date.</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">
+              No supervisor activity for this date.
+            </p>
           ) : (
-            <>
-              <div className="relative" style={{ height: Math.max(supervisorRows.slice(0, 8).length * 44 + 24, 200) }}>
-                <canvas ref={supBarRef} role="img" aria-label="Horizontal bar chart of supervisor attendance scan counts">
-                  {supervisorRows.slice(0, 8).map((s) => `${s.supervisorName}: ${s.attendanceCount}`).join(", ")}.
-                </canvas>
+            <div className="overflow-x-auto">
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-10">
+                    <tr>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        #
+                      </th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Sub-CL Name
+                      </th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Assigned
+                      </th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Scanned
+                      </th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Coverage
+                      </th>
+                      <th className="text-center px-5 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {supervisorRows
+                      .sort((a, b) => b.attendancePercent - a.attendancePercent)
+                      .map((row, index) => (
+                        <tr
+                          key={row.supervisorId}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                        >
+                          <td className="px-5 py-3 text-gray-500 dark:text-gray-400 font-medium">
+                            {index + 1}
+                          </td>
+                          <td className="px-5 py-3 text-gray-900 dark:text-white font-medium">
+                            {row.supervisorName}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <span className="text-gray-600 dark:text-gray-400 font-medium">
+                              {row.totalAssigned}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <span className="inline-flex items-center justify-center min-w-[50px] px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold text-xs">
+                              {row.attendanceCount}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <span className="inline-flex items-center justify-center min-w-[60px] px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-bold">
+                              {row.attendancePercent}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <SupervisorActivityBadge status={row.status} />
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {supervisorRows.slice(0, 8).map((row) => (
-                  <div key={row.supervisorId} className="flex items-center gap-1.5 rounded-lg border border-gray-100 dark:border-gray-700 px-2.5 py-1.5">
-                    <span className="text-xs text-gray-700 dark:text-gray-300">{row.supervisorName}</span>
-                    <SupervisorActivityBadge status={row.status} />
-                  </div>
-                ))}
-              </div>
-            </>
+            </div>
           )}
         </div>
 

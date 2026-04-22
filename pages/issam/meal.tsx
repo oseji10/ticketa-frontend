@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 import Layout from "../containers/Layout";
 import PageTitle from "../components/Typography/PageTitle";
 import api from "../../lib/api";
+import Link from "next/link";
 
 type MealSession = {
   mealSessionId: number;
@@ -276,6 +277,18 @@ export default function FoodInventoryPage() {
                 Record Supply
               </span>
             </Button>
+
+             <Link href="/issam/meal-feedback">
+  <Button
+    className="rounded-2xl h-11 bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800 w-full sm:w-auto"
+  >
+    <span className="inline-flex items-center justify-center gap-2">
+      <Plus className="w-4 h-4" />
+      Statistics
+    </span>
+  </Button>
+</Link>
+
           </div>
         </div>
 

@@ -13,6 +13,9 @@ import {
   Baby,
   Syringe,
   Activity,
+  Plus,
+  Trash2,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Layout from "../containers/Layout";
@@ -61,6 +64,13 @@ type AvailableMedication = {
   isExpiringSoon: boolean;
 };
 
+type MedicationItem = {
+  id: string;
+  drugName: string;
+  quantity: string;
+  instructions: string;
+};
+
 export default function MedicationDispensingPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searching, setSearching] = useState(false);
@@ -77,12 +87,14 @@ export default function MedicationDispensingPage() {
 
   // Dispensing form
   const [isParticipant, setIsParticipant] = useState(true);
-  const [drugName, setDrugName] = useState("");
-  const [quantity, setQuantity] = useState("");
   const [symptoms, setSymptoms] = useState("");
-  const [instructions, setInstructions] = useState("");
   const [dispensing, setDispensing] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+
+  // Multiple medications
+  const [medicationItems, setMedicationItems] = useState<MedicationItem[]>([
+    { id: "1", drugName: "", quantity: "", instructions: "" }
+  ]);
 
   // Non-participant fields
   const [recipientName, setRecipientName] = useState("");
@@ -170,6 +182,28 @@ export default function MedicationDispensingPage() {
     }
   }
 
+  function addMedicationItem() {
+    const newId = (parseInt(medicationItems[medicationItems.length - 1].id) + 1).toString();
+    setMedicationItems([
+      ...medicationItems,
+      { id: newId, drugName: "", quantity: "", instructions: "" }
+    ]);
+  }
+
+  function removeMedicationItem(id: string) {
+    if (medicationItems.length === 1) {
+      toast.error("At least one medication is required");
+      return;
+    }
+    setMedicationItems(medicationItems.filter(item => item.id !== id));
+  }
+
+  function updateMedicationItem(id: string, field: keyof MedicationItem, value: string) {
+    setMedicationItems(medicationItems.map(item =>
+      item.id === id ? { ...item, [field]: value } : item
+    ));
+  }
+
   async function handleDispense(e: React.FormEvent) {
     e.preventDefault();
 
@@ -183,16 +217,21 @@ export default function MedicationDispensingPage() {
       return;
     }
 
-    if (!drugName.trim() || !quantity) {
-      toast.error("Please fill in all required fields");
+    // Validate medication items
+    const validMedications = medicationItems.filter(item => item.drugName && item.quantity);
+    
+    if (validMedications.length === 0) {
+      toast.error("Please add at least one medication");
       return;
     }
 
-    // Check if quantity exceeds available stock
-    const selectedMed = availableMedications.find(m => m.drugName === drugName);
-    if (selectedMed && parseInt(quantity) > selectedMed.totalRemaining) {
-      toast.error(`Insufficient stock. Only ${selectedMed.totalRemaining} units available.`);
-      return;
+    // Check stock for all medications
+    for (const item of validMedications) {
+      const selectedMed = availableMedications.find(m => m.drugName === item.drugName);
+      if (selectedMed && parseInt(item.quantity) > selectedMed.totalRemaining) {
+        toast.error(`Insufficient stock for ${item.drugName}. Only ${selectedMed.totalRemaining} units available.`);
+        return;
+      }
     }
 
     // Warning for drug allergies
@@ -209,34 +248,38 @@ export default function MedicationDispensingPage() {
 
     try {
       setDispensing(true);
-      const payload: any = {
-        isParticipant,
-        drugName: drugName.trim(),
-        quantityDispensed: parseInt(quantity),
-        symptoms: symptoms.trim() || null,
-        instructions: instructions.trim() || null,
-      };
 
-      if (isParticipant) {
-        payload.attendeeId = selectedAttendee!.attendeeId;
-      } else {
-        payload.recipientName = recipientName.trim();
-        payload.recipientType = recipientType;
-        payload.recipientNotes = recipientNotes.trim() || null;
-      }
+      // Dispense each medication
+      const dispensingPromises = validMedications.map(async (item) => {
+        const payload: any = {
+          isParticipant,
+          drugName: item.drugName,
+          quantityDispensed: parseInt(item.quantity),
+          symptoms: symptoms.trim() || null,
+          instructions: item.instructions.trim() || null,
+        };
 
-      const { data } = await api.post("/medications/dispense", payload);
+        if (isParticipant) {
+          payload.attendeeId = selectedAttendee!.attendeeId;
+        } else {
+          payload.recipientName = recipientName.trim();
+          payload.recipientType = recipientType;
+          payload.recipientNotes = recipientNotes.trim() || null;
+        }
 
-      toast.success(data.message || "Medication dispensed successfully");
+        return api.post("/medications/dispense", payload);
+      });
+
+      await Promise.all(dispensingPromises);
+
+      toast.success(`Successfully dispensed ${validMedications.length} medication(s)`);
 
       // Show success message
       setShowSuccessMessage(true);
 
       // Reset form
-      setDrugName("");
-      setQuantity("");
+      setMedicationItems([{ id: "1", drugName: "", quantity: "", instructions: "" }]);
       setSymptoms("");
-      setInstructions("");
       setRecipientName("");
       setRecipientNotes("");
 
@@ -268,10 +311,8 @@ export default function MedicationDispensingPage() {
     setSelectedAttendee(null);
     setMedicalInfo(null);
     setMedicationHistory([]);
-    setDrugName("");
-    setQuantity("");
+    setMedicationItems([{ id: "1", drugName: "", quantity: "", instructions: "" }]);
     setSymptoms("");
-    setInstructions("");
     setRecipientName("");
     setRecipientNotes("");
     setShowSuccessMessage(false);
@@ -495,165 +536,19 @@ export default function MedicationDispensingPage() {
           )}
 
           {/* Dispensing Form for Non-Participants */}
-          <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6 mb-8">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Dispense Medication
-            </h3>
-
-            {!loadingMedications && availableMedications.length === 0 && (
-              <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-amber-900 dark:text-amber-100">
-                      No Medications Available
-                    </h4>
-                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                      There are no medications in stock. Please record medication supplies first.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleDispense} className="space-y-4">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select Medication *
-                </label>
-                {loadingMedications ? (
-                  <div className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm">
-                    Loading medications...
-                  </div>
-                ) : availableMedications.length === 0 ? (
-                  <div className="w-full px-4 py-3 rounded-2xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
-                    No medications available in inventory
-                  </div>
-                ) : (
-                  <select
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                    value={drugName}
-                    onChange={(e) => setDrugName(e.target.value)}
-                    required
-                  >
-                    <option value="">-- Select Medication --</option>
-                    {availableMedications.map((med) => (
-                      <option key={med.drugName} value={med.drugName}>
-                        {med.drugName} ({med.totalRemaining} units available)
-                        {med.isExpiringSoon && " - Expiring Soon"}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                
-                {/* Show selected medication details */}
-                {drugName && (
-                  <div className="mt-2 p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                    {(() => {
-                      const selectedMed = availableMedications.find(m => m.drugName === drugName);
-                      if (!selectedMed) return null;
-                      
-                      return (
-                        <div className="flex items-center justify-between text-sm">
-                          <div>
-                            <p className="font-medium text-purple-900 dark:text-purple-100">
-                              {selectedMed.drugName}
-                            </p>
-                            <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
-                              Available Stock: <span className="font-semibold">{selectedMed.totalRemaining}</span> units
-                              {selectedMed.isExpiringSoon && (
-                                <span className="ml-2 text-amber-600 dark:text-amber-400">
-                                  ⚠️ Expiring Soon
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          {selectedMed.isExpiringSoon && (
-                            <Badge type="warning" className="text-xs">
-                              Use First
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Quantity *
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Number of tablets/units"
-                  min="1"
-                  max={
-                    drugName
-                      ? availableMedications.find(m => m.drugName === drugName)?.totalRemaining || 999
-                      : 999
-                  }
-                  required
-                  disabled={!drugName}
-                />
-                {drugName && quantity && (() => {
-                  const selectedMed = availableMedications.find(m => m.drugName === drugName);
-                  const remaining = selectedMed ? selectedMed.totalRemaining - parseInt(quantity || "0") : 0;
-                  const exceedsStock = selectedMed && parseInt(quantity) > selectedMed.totalRemaining;
-                  
-                  return (
-                    <p className={`text-xs mt-2 ${exceedsStock ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>
-                      {exceedsStock ? (
-                        `⚠️ Insufficient stock! Only ${selectedMed.totalRemaining} units available.`
-                      ) : (
-                        `Stock after dispensing: ${remaining} units`
-                      )}
-                    </p>
-                  );
-                })()}
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Symptoms / Reason
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={3}
-                  value={symptoms}
-                  onChange={(e) => setSymptoms(e.target.value)}
-                  placeholder="e.g., Headache, Fever, Body aches..."
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Instructions / Dosage
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={3}
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="e.g., Take 2 tablets every 6 hours after meals..."
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={dispensing || !drugName.trim() || !quantity || !recipientName.trim() || availableMedications.length === 0}
-                className="w-full rounded-2xl h-12 bg-purple-700 border-purple-700 hover:bg-purple-800 hover:border-purple-800"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Pill className="w-4 h-4" />
-                  {dispensing ? "Dispensing..." : availableMedications.length === 0 ? "No Medications Available" : "Dispense Medication"}
-                </span>
-              </Button>
-            </form>
-          </div>
+          <DispensingForm
+            medicationItems={medicationItems}
+            symptoms={symptoms}
+            setSymptoms={setSymptoms}
+            availableMedications={availableMedications}
+            loadingMedications={loadingMedications}
+            hasCriticalAlerts={hasCriticalAlerts}
+            dispensing={dispensing}
+            addMedicationItem={addMedicationItem}
+            removeMedicationItem={removeMedicationItem}
+            updateMedicationItem={updateMedicationItem}
+            handleDispense={handleDispense}
+          />
         </div>
       )}
 
@@ -693,178 +588,11 @@ export default function MedicationDispensingPage() {
           </div>
 
           {/* Medical Information Card */}
-          {loadingMedicalInfo ? (
-            <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-8">
-              <div className="text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
-                <p className="mt-2 text-gray-500 dark:text-gray-400">
-                  Loading medical information...
-                </p>
-              </div>
-            </div>
-          ) : medicalInfo && (
-            <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-                  Medical Information
-                </h3>
-                {hasCriticalAlerts && (
-                  <Badge type="danger" className="text-xs">
-                    <AlertTriangle className="w-3 h-3 inline mr-1" />
-                    Critical Alerts
-                  </Badge>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Drug Allergies - Critical Alert */}
-                {medicalInfo.hasDrugAllergy && (
-                  <div className="col-span-full rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-bold text-red-900 dark:text-red-100 text-sm">
-                          ⚠️ DRUG ALLERGY ALERT
-                        </h4>
-                        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                          Allergic to: <span className="font-semibold">{medicalInfo.drugAllergyType || "Specific drug not specified"}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pregnancy - Critical Alert */}
-                {medicalInfo.isPregnant && (
-                  <div className="col-span-full rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 p-4">
-                    <div className="flex items-start gap-3">
-                      <Baby className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm">
-                          ⚠️ PREGNANCY ALERT
-                        </h4>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                          Patient is pregnant {medicalInfo.pregnancyMonths && `(${medicalInfo.pregnancyMonths})`}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Medical Conditions - Critical Alert */}
-                {medicalInfo.hasMedicalConditions && (
-                  <div className="col-span-full rounded-xl bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700 p-4">
-                    <div className="flex items-start gap-3">
-                      <Heart className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-bold text-orange-900 dark:text-orange-100 text-sm">
-                          ⚠️ MEDICAL CONDITION ALERT
-                        </h4>
-                        <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                          {medicalInfo.medicalConditionsDetails || "Kidney disease, heart conditions, hypertension, or diabetes"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* General Allergies */}
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasAllergy ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        General Allergies
-                      </h4>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                        {medicalInfo.hasAllergy ? (
-                          medicalInfo.allergyDetails || "Yes (details not specified)"
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">No known allergies</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Breastfeeding */}
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-start gap-3">
-                    <Baby className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.isBreastfeeding ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        Breastfeeding
-                      </h4>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                        {medicalInfo.isBreastfeeding ? (
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">Yes</span>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">No</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Current Medications */}
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-start gap-3">
-                    <Pill className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onMedications ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        Current Medications
-                      </h4>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                        {medicalInfo.onMedications ? (
-                          medicalInfo.medicationType || "Yes (type not specified)"
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">None</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Birth Control */}
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-start gap-3">
-                    <Syringe className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onBirthControl ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        Birth Control
-                      </h4>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                        {medicalInfo.onBirthControl ? (
-                          <span className="text-indigo-600 dark:text-indigo-400 font-medium">Yes</span>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">No</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Surgical History */}
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex items-start gap-3">
-                    <Activity className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasSurgicalHistory ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        Surgical History
-                      </h4>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                        {medicalInfo.hasSurgicalHistory ? (
-                          <span className="text-teal-600 dark:text-teal-400 font-medium">Yes</span>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">No previous surgeries</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <MedicalInfoCard
+            loadingMedicalInfo={loadingMedicalInfo}
+            medicalInfo={medicalInfo}
+            hasCriticalAlerts={hasCriticalAlerts}
+          />
 
           {/* Success Message */}
           {showSuccessMessage && (
@@ -884,254 +612,484 @@ export default function MedicationDispensingPage() {
           )}
 
           {/* Dispensing Form */}
-          <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Dispense Medication
-            </h3>
-
-            {/* Critical Warnings */}
-            {hasCriticalAlerts && (
-              <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-red-800 dark:text-red-200 font-medium">
-                    Review medical alerts above before dispensing medication
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!loadingMedications && availableMedications.length === 0 && (
-              <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-amber-900 dark:text-amber-100">
-                      No Medications Available
-                    </h4>
-                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                      There are no medications in stock. Please record medication supplies first.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleDispense} className="space-y-4">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select Medication *
-                </label>
-                {loadingMedications ? (
-                  <div className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm">
-                    Loading medications...
-                  </div>
-                ) : availableMedications.length === 0 ? (
-                  <div className="w-full px-4 py-3 rounded-2xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">
-                    No medications available in inventory
-                  </div>
-                ) : (
-                  <select
-                    className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                    value={drugName}
-                    onChange={(e) => setDrugName(e.target.value)}
-                    required
-                  >
-                    <option value="">-- Select Medication --</option>
-                    {availableMedications.map((med) => (
-                      <option key={med.drugName} value={med.drugName}>
-                        {med.drugName} ({med.totalRemaining} units available)
-                        {med.isExpiringSoon && " - Expiring Soon"}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                
-                {/* Show selected medication details */}
-                {drugName && (
-                  <div className="mt-2 p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                    {(() => {
-                      const selectedMed = availableMedications.find(m => m.drugName === drugName);
-                      if (!selectedMed) return null;
-                      
-                      return (
-                        <div className="flex items-center justify-between text-sm">
-                          <div>
-                            <p className="font-medium text-purple-900 dark:text-purple-100">
-                              {selectedMed.drugName}
-                            </p>
-                            <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
-                              Available Stock: <span className="font-semibold">{selectedMed.totalRemaining}</span> units
-                              {selectedMed.isExpiringSoon && (
-                                <span className="ml-2 text-amber-600 dark:text-amber-400">
-                                  ⚠️ Expiring Soon
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                          {selectedMed.isExpiringSoon && (
-                            <Badge type="warning" className="text-xs">
-                              Use First
-                            </Badge>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Quantity *
-                </label>
-                <input
-                  type="number"
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Number of tablets/units"
-                  min="1"
-                  max={
-                    drugName
-                      ? availableMedications.find(m => m.drugName === drugName)?.totalRemaining || 999
-                      : 999
-                  }
-                  required
-                  disabled={!drugName}
-                />
-                {drugName && quantity && (() => {
-                  const selectedMed = availableMedications.find(m => m.drugName === drugName);
-                  const remaining = selectedMed ? selectedMed.totalRemaining - parseInt(quantity || "0") : 0;
-                  const exceedsStock = selectedMed && parseInt(quantity) > selectedMed.totalRemaining;
-                  
-                  return (
-                    <p className={`text-xs mt-2 ${exceedsStock ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>
-                      {exceedsStock ? (
-                        `⚠️ Insufficient stock! Only ${selectedMed.totalRemaining} units available.`
-                      ) : (
-                        `Stock after dispensing: ${remaining} units`
-                      )}
-                    </p>
-                  );
-                })()}
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Symptoms / Reason
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={3}
-                  value={symptoms}
-                  onChange={(e) => setSymptoms(e.target.value)}
-                  placeholder="e.g., Headache, Fever, Body aches..."
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Instructions / Dosage
-                </label>
-                <textarea
-                  className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  rows={3}
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                  placeholder="e.g., Take 2 tablets every 6 hours after meals..."
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={dispensing || !drugName.trim() || !quantity || availableMedications.length === 0}
-                className="w-full rounded-2xl h-12 bg-purple-700 border-purple-700 hover:bg-purple-800 hover:border-purple-800"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Pill className="w-4 h-4" />
-                  {dispensing ? "Dispensing..." : availableMedications.length === 0 ? "No Medications Available" : "Dispense Medication"}
-                </span>
-              </Button>
-            </form>
-          </div>
+          <DispensingForm
+            medicationItems={medicationItems}
+            symptoms={symptoms}
+            setSymptoms={setSymptoms}
+            availableMedications={availableMedications}
+            loadingMedications={loadingMedications}
+            hasCriticalAlerts={hasCriticalAlerts}
+            dispensing={dispensing}
+            addMedicationItem={addMedicationItem}
+            removeMedicationItem={removeMedicationItem}
+            updateMedicationItem={updateMedicationItem}
+            handleDispense={handleDispense}
+          />
 
           {/* Medication History */}
-          <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6 mb-8">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Medication History
-            </h3>
-
-            {loadingHistory ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
-                <p className="mt-2 text-gray-500 dark:text-gray-400">
-                  Loading history...
-                </p>
-              </div>
-            ) : medicationHistory.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  No medication history for this participant
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {medicationHistory.map((record) => (
-                  <div
-                    key={record.dispensingId}
-                    className="border border-gray-200 dark:border-gray-700 rounded-2xl p-4"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">
-                          {record.drugName}
-                        </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {new Date(record.dispensedAt).toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge type="primary">
-                        {record.quantityDispensed} unit{record.quantityDispensed > 1 ? "s" : ""}
-                      </Badge>
-                    </div>
-
-                    {record.symptoms && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Symptoms:
-                        </p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
-                          {record.symptoms}
-                        </p>
-                      </div>
-                    )}
-
-                    {record.instructions && (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Instructions:
-                        </p>
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
-                          {record.instructions}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                      <span>Batch: {record.batchNumber}</span>
-                      <span>•</span>
-                      <span>By: {record.dispensedBy}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <MedicationHistoryCard
+            loadingHistory={loadingHistory}
+            medicationHistory={medicationHistory}
+          />
         </div>
       )}
     </Layout>
+  );
+}
+
+// Separate component for dispensing form
+function DispensingForm({
+  medicationItems,
+  symptoms,
+  setSymptoms,
+  availableMedications,
+  loadingMedications,
+  hasCriticalAlerts,
+  dispensing,
+  addMedicationItem,
+  removeMedicationItem,
+  updateMedicationItem,
+  handleDispense,
+}: any) {
+  return (
+    <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6">
+      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        Dispense Medication
+      </h3>
+
+      {/* Critical Warnings */}
+      {hasCriticalAlerts && (
+        <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-red-800 dark:text-red-200 font-medium">
+              Review medical alerts above before dispensing medication
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!loadingMedications && availableMedications.length === 0 && (
+        <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-amber-900 dark:text-amber-100">
+                No Medications Available
+              </h4>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                There are no medications in stock. Please record medication supplies first.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleDispense} className="space-y-4">
+        {/* Symptoms (Common for all medications) */}
+        <div>
+          <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            Symptoms / Reason
+          </label>
+          <textarea
+            className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            rows={3}
+            value={symptoms}
+            onChange={(e) => setSymptoms(e.target.value)}
+            placeholder="e.g., Headache, Fever, Body aches..."
+          />
+        </div>
+
+        {/* Medications List */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Medications ({medicationItems.length})
+            </label>
+            <Button
+              type="button"
+              size="small"
+              onClick={addMedicationItem}
+              className="rounded-xl bg-green-600 border-green-600 hover:bg-green-700 hover:border-green-700"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Medication
+            </Button>
+          </div>
+
+          {medicationItems.map((item: MedicationItem, index: number) => (
+            <div
+              key={item.id}
+              className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/50"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Medication #{index + 1}
+                </span>
+                {medicationItems.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeMedicationItem(item.id)}
+                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {/* Drug Selection */}
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Select Medication *
+                  </label>
+                  {loadingMedications ? (
+                    <div className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm">
+                      Loading...
+                    </div>
+                  ) : (
+                    <select
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      value={item.drugName}
+                      onChange={(e) => updateMedicationItem(item.id, "drugName", e.target.value)}
+                      required
+                    >
+                      <option value="">-- Select --</option>
+                      {availableMedications.map((med: AvailableMedication) => (
+                        <option key={med.drugName} value={med.drugName}>
+                          {med.drugName} ({med.totalRemaining} units)
+                          {med.isExpiringSoon && " - Expiring Soon"}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Show stock info */}
+                  {item.drugName && (() => {
+                    const selectedMed = availableMedications.find((m: AvailableMedication) => m.drugName === item.drugName);
+                    if (!selectedMed) return null;
+                    
+                    return (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Available: <span className="font-semibold">{selectedMed.totalRemaining}</span> units
+                        {selectedMed.isExpiringSoon && (
+                          <span className="ml-2 text-amber-600 dark:text-amber-400">⚠️ Expiring Soon</span>
+                        )}
+                      </p>
+                    );
+                  })()}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Quantity */}
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                      Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      value={item.quantity}
+                      onChange={(e) => updateMedicationItem(item.id, "quantity", e.target.value)}
+                      placeholder="0"
+                      min="1"
+                      required
+                      disabled={!item.drugName}
+                    />
+                  </div>
+
+                  {/* Instructions */}
+                  <div>
+                    <label className="block mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                      Dosage/Instructions
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      value={item.instructions}
+                      onChange={(e) => updateMedicationItem(item.id, "instructions", e.target.value)}
+                      placeholder="e.g., 2x daily"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button
+          type="submit"
+          disabled={dispensing || availableMedications.length === 0}
+          className="w-full rounded-2xl h-12 bg-purple-700 border-purple-700 hover:bg-purple-800 hover:border-purple-800"
+        >
+          <span className="inline-flex items-center gap-2">
+            <Pill className="w-4 h-4" />
+            {dispensing ? "Dispensing..." : `Dispense ${medicationItems.filter(i => i.drugName && i.quantity).length} Medication(s)`}
+          </span>
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+// Medical Info Card Component (keeping it separate for clarity)
+function MedicalInfoCard({ loadingMedicalInfo, medicalInfo, hasCriticalAlerts }: any) {
+  if (loadingMedicalInfo) {
+    return (
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-8">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
+          <p className="mt-2 text-gray-500 dark:text-gray-400">
+            Loading medical information...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!medicalInfo) return null;
+
+  return (
+    <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+          Medical Information
+        </h3>
+        {hasCriticalAlerts && (
+          <Badge type="danger" className="text-xs">
+            <AlertTriangle className="w-3 h-3 inline mr-1" />
+            Critical Alerts
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Drug Allergies - Critical Alert */}
+        {medicalInfo.hasDrugAllergy && (
+          <div className="col-span-full rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-red-900 dark:text-red-100 text-sm">
+                  ⚠️ DRUG ALLERGY ALERT
+                </h4>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  Allergic to: <span className="font-semibold">{medicalInfo.drugAllergyType || "Specific drug not specified"}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pregnancy - Critical Alert */}
+        {medicalInfo.isPregnant && (
+          <div className="col-span-full rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 p-4">
+            <div className="flex items-start gap-3">
+              <Baby className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm">
+                  ⚠️ PREGNANCY ALERT
+                </h4>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  Patient is pregnant {medicalInfo.pregnancyMonths && `(${medicalInfo.pregnancyMonths})`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Medical Conditions - Critical Alert */}
+        {medicalInfo.hasMedicalConditions && (
+          <div className="col-span-full rounded-xl bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700 p-4">
+            <div className="flex items-start gap-3">
+              <Heart className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-bold text-orange-900 dark:text-orange-100 text-sm">
+                  ⚠️ MEDICAL CONDITION ALERT
+                </h4>
+                <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                  {medicalInfo.medicalConditionsDetails || "Kidney disease, heart conditions, hypertension, or diabetes"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Other medical info cards remain the same */}
+        {/* General Allergies */}
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasAllergy ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`} />
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                General Allergies
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                {medicalInfo.hasAllergy ? (
+                  medicalInfo.allergyDetails || "Yes (details not specified)"
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">No known allergies</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Breastfeeding */}
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-start gap-3">
+            <Baby className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.isBreastfeeding ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                Breastfeeding
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                {medicalInfo.isBreastfeeding ? (
+                  <span className="text-blue-600 dark:text-blue-400 font-medium">Yes</span>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">No</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Current Medications */}
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-start gap-3">
+            <Pill className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onMedications ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`} />
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                Current Medications
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                {medicalInfo.onMedications ? (
+                  medicalInfo.medicationType || "Yes (type not specified)"
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">None</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Birth Control */}
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-start gap-3">
+            <Syringe className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onBirthControl ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`} />
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                Birth Control
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                {medicalInfo.onBirthControl ? (
+                  <span className="text-indigo-600 dark:text-indigo-400 font-medium">Yes</span>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">No</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Surgical History */}
+        <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-start gap-3">
+            <Activity className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasSurgicalHistory ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400'}`} />
+            <div className="flex-1">
+              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                Surgical History
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                {medicalInfo.hasSurgicalHistory ? (
+                  <span className="text-teal-600 dark:text-teal-400 font-medium">Yes</span>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">No previous surgeries</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Medication History Card Component
+function MedicationHistoryCard({ loadingHistory, medicationHistory }: any) {
+  return (
+    <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6 mb-8">
+      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        Medication History
+      </h3>
+
+      {loadingHistory ? (
+        <div className="text-center py-8">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
+          <p className="mt-2 text-gray-500 dark:text-gray-400">
+            Loading history...
+          </p>
+        </div>
+      ) : medicationHistory.length === 0 ? (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <p className="text-gray-500 dark:text-gray-400">
+            No medication history for this participant
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {medicationHistory.map((record: MedicationHistory) => (
+            <div
+              key={record.dispensingId}
+              className="border border-gray-200 dark:border-gray-700 rounded-2xl p-4"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white">
+                    {record.drugName}
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    <Clock className="w-3 h-3 inline mr-1" />
+                    {new Date(record.dispensedAt).toLocaleString()}
+                  </p>
+                </div>
+                <Badge type="primary">
+                  {record.quantityDispensed} unit{record.quantityDispensed > 1 ? "s" : ""}
+                </Badge>
+              </div>
+
+              {record.symptoms && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Symptoms:
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    {record.symptoms}
+                  </p>
+                </div>
+              )}
+
+              {record.instructions && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Instructions:
+                  </p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    {record.instructions}
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <span>Batch: {record.batchNumber}</span>
+                <span>•</span>
+                <span>By: {record.dispensedBy}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

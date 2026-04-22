@@ -26,6 +26,24 @@ type MealRating = {
   createdAt: string;
 };
 
+type FoodSupply = {
+  supplyId: number;
+  foodItem: string;
+  vendorName: string;
+  quantitySupplied: number;
+  quantityDistributed: number;
+  quantityRemaining: number;
+  supplyDate: string;
+  notes: string | null;
+};
+
+type SupplyTotals = {
+  totalSupplied: number;
+  totalDistributed: number;
+  totalRemaining: number;
+  distributionRate: number;
+};
+
 type MealStatistics = {
   mealSessionId: number;
   mealSessionTitle: string;
@@ -42,6 +60,8 @@ type MealStatistics = {
     5: number;
   };
   ratings: MealRating[];
+  foodSupplies: FoodSupply[];
+  supplyTotals: SupplyTotals;
 };
 
 type ApiResponse = {
@@ -144,9 +164,25 @@ function MealStatisticsCard({
               <span className="text-gray-300 dark:text-gray-600">•</span>
               <span>{meal.vendors?.join(", ") || "N/A"}</span>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-              {meal.foodItems?.join(", ") || "N/A"}
-            </p>
+            
+            {/* Food Items from foodSupplies if available, otherwise from foodItems */}
+            {meal.foodSupplies && meal.foodSupplies.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {meal.foodSupplies.map((supply) => (
+                  <span
+                    key={supply.supplyId}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-xs font-medium text-blue-700 dark:text-blue-300"
+                  >
+                    <UtensilsCrossed className="w-3 h-3" />
+                    {supply.foodItem}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                {meal.foodItems?.join(", ") || "N/A"}
+              </p>
+            )}
           </div>
 
           <button
@@ -228,7 +264,7 @@ function MealStatisticsCard({
       {/* Expanded Details */}
       {expanded && (
         <div className="p-5 sm:p-6 border-t border-gray-100 dark:border-gray-700">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Rating Distribution */}
             <div>
               <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wide">
@@ -283,6 +319,199 @@ function MealStatisticsCard({
               )}
             </div>
           </div>
+
+          {/* Food Supply Information */}
+          {meal.foodSupplies && meal.foodSupplies.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">
+                  Food Supply & Distribution
+                </h4>
+                {meal.supplyTotals && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      Distribution Rate:
+                    </span>
+                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                      {meal.supplyTotals.distributionRate.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Supply Totals Cards */}
+              {meal.supplyTotals && (
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+                  <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400 mb-1">
+                      Supplied
+                    </p>
+                    <p className="text-lg sm:text-xl font-bold text-blue-700 dark:text-blue-300">
+                      {meal.supplyTotals.totalSupplied.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400 mb-1">
+                      Distributed
+                    </p>
+                    <p className="text-lg sm:text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                      {meal.supplyTotals.totalDistributed.toLocaleString()}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
+                      Remaining
+                    </p>
+                    <p className="text-lg sm:text-xl font-bold text-amber-700 dark:text-amber-300">
+                      {meal.supplyTotals.totalRemaining.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile View - Supply Cards */}
+              <div className="block lg:hidden space-y-3">
+                {meal.foodSupplies.map((supply) => {
+                  const rate = supply.quantitySupplied > 0
+                    ? (supply.quantityDistributed / supply.quantitySupplied) * 100
+                    : 0;
+                  
+                  return (
+                    <div
+                      key={supply.supplyId}
+                      className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <h5 className="font-bold text-gray-900 dark:text-white mb-1">
+                            {supply.foodItem}
+                          </h5>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {supply.vendorName}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Rate
+                          </p>
+                          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                            {rate.toFixed(0)}%
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-2">
+                          <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 mb-0.5">
+                            SUPPLIED
+                          </p>
+                          <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                            {supply.quantitySupplied.toLocaleString()}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 p-2">
+                          <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-0.5">
+                            DISTRIBUTED
+                          </p>
+                          <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                            {supply.quantityDistributed.toLocaleString()}
+                          </p>
+                        </div>
+
+                        <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 p-2">
+                          <p className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 mb-0.5">
+                            REMAINING
+                          </p>
+                          <p className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                            {supply.quantityRemaining.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {supply.notes && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            <span className="font-semibold">Notes:</span> {supply.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop View - Supply Table */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Food Item
+                      </th>
+                      <th className="text-left py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Vendor
+                      </th>
+                      <th className="text-right py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Supplied
+                      </th>
+                      <th className="text-right py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Distributed
+                      </th>
+                      <th className="text-right py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Remaining
+                      </th>
+                      <th className="text-left py-3 px-2 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                        Notes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {meal.foodSupplies.map((supply) => {
+                      const rate = supply.quantitySupplied > 0
+                        ? (supply.quantityDistributed / supply.quantitySupplied) * 100
+                        : 0;
+                      
+                      return (
+                        <tr
+                          key={supply.supplyId}
+                          className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        >
+                          <td className="py-3 px-2 font-semibold text-gray-900 dark:text-white">
+                            {supply.foodItem}
+                          </td>
+                          <td className="py-3 px-2 text-gray-600 dark:text-gray-400">
+                            {supply.vendorName}
+                          </td>
+                          <td className="py-3 px-2 text-right font-semibold text-blue-600 dark:text-blue-400">
+                            {supply.quantitySupplied.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            <div className="flex flex-col items-end">
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                {supply.quantityDistributed.toLocaleString()}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {rate.toFixed(0)}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-right font-semibold text-amber-600 dark:text-amber-400">
+                            {supply.quantityRemaining.toLocaleString()}
+                          </td>
+                          <td className="py-3 px-2 text-gray-600 dark:text-gray-400 text-xs max-w-xs truncate">
+                            {supply.notes || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
