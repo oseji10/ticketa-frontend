@@ -8,6 +8,11 @@ import {
   Clock,
   FileText,
   AlertCircle,
+  AlertTriangle,
+  Heart,
+  Baby,
+  Syringe,
+  Activity,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Layout from "../containers/Layout";
@@ -20,6 +25,22 @@ type Attendee = {
   phoneNumber?: string;
   state?: string;
   lga?: string;
+};
+
+type MedicalInfo = {
+  hasAllergy: boolean;
+  allergyDetails?: string;
+  hasDrugAllergy: boolean;
+  drugAllergyType?: string;
+  isPregnant: boolean;
+  pregnancyMonths?: string;
+  isBreastfeeding: boolean;
+  onMedications: boolean;
+  medicationType?: string;
+  onBirthControl: boolean;
+  hasSurgicalHistory: boolean;
+  hasMedicalConditions: boolean;
+  medicalConditionsDetails?: string;
 };
 
 type MedicationHistory = {
@@ -45,6 +66,8 @@ export default function MedicationDispensingPage() {
   const [searching, setSearching] = useState(false);
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null);
+  const [medicalInfo, setMedicalInfo] = useState<MedicalInfo | null>(null);
+  const [loadingMedicalInfo, setLoadingMedicalInfo] = useState(false);
   const [medicationHistory, setMedicationHistory] = useState<MedicationHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -115,6 +138,22 @@ export default function MedicationDispensingPage() {
     setAttendees([]);
     setSearchTerm("");
 
+    // Load medical information
+    try {
+      setLoadingMedicalInfo(true);
+      const { data } = await api.get(
+        `/medications/attendees/${attendee.attendeeId}/medical-info`
+      );
+      setMedicalInfo(data.medicalInfo || null);
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message || "Failed to load medical information"
+      );
+      setMedicalInfo(null);
+    } finally {
+      setLoadingMedicalInfo(false);
+    }
+
     // Load medication history
     try {
       setLoadingHistory(true);
@@ -156,6 +195,18 @@ export default function MedicationDispensingPage() {
       return;
     }
 
+    // Warning for drug allergies
+    if (isParticipant && medicalInfo?.hasDrugAllergy && medicalInfo?.drugAllergyType) {
+      const allergyWarning = `⚠️ WARNING: Patient has drug allergy to ${medicalInfo.drugAllergyType}`;
+      toast.error(allergyWarning, { duration: 5000 });
+    }
+
+    // Warning for pregnancy
+    if (isParticipant && medicalInfo?.isPregnant) {
+      const pregnancyWarning = `⚠️ WARNING: Patient is pregnant ${medicalInfo.pregnancyMonths ? `(${medicalInfo.pregnancyMonths})` : ''}`;
+      toast.error(pregnancyWarning, { duration: 5000 });
+    }
+
     try {
       setDispensing(true);
       const payload: any = {
@@ -194,7 +245,10 @@ export default function MedicationDispensingPage() {
 
       // Reload history if participant
       if (isParticipant && selectedAttendee) {
-        selectAttendee(selectedAttendee);
+        const { data: historyData } = await api.get(
+          `/medications/attendees/${selectedAttendee.attendeeId}/history`
+        );
+        setMedicationHistory(historyData.history || []);
       }
 
       // Hide success message after 3 seconds
@@ -212,6 +266,7 @@ export default function MedicationDispensingPage() {
 
   function clearSelection() {
     setSelectedAttendee(null);
+    setMedicalInfo(null);
     setMedicationHistory([]);
     setDrugName("");
     setQuantity("");
@@ -221,6 +276,13 @@ export default function MedicationDispensingPage() {
     setRecipientNotes("");
     setShowSuccessMessage(false);
   }
+
+  // Check if there are critical medical alerts
+  const hasCriticalAlerts = medicalInfo && (
+    medicalInfo.hasDrugAllergy || 
+    medicalInfo.isPregnant || 
+    medicalInfo.hasMedicalConditions
+  );
 
   return (
     <Layout>
@@ -281,6 +343,7 @@ export default function MedicationDispensingPage() {
             onClick={() => {
               setIsParticipant(false);
               setSelectedAttendee(null);
+              setMedicalInfo(null);
               setMedicationHistory([]);
             }}
             className={`flex-1 px-4 py-3 rounded-2xl border-2 font-medium transition-all ${
@@ -346,7 +409,7 @@ export default function MedicationDispensingPage() {
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         ID: {attendee.attendeeId}
-                        {attendee.phone && ` • ${attendee.phone}`}
+                        {attendee.phoneNumber && ` • ${attendee.phoneNumber}`}
                         {attendee.state && ` • ${attendee.lga}, ${attendee.state}`}
                       </p>
                     </div>
@@ -629,6 +692,180 @@ export default function MedicationDispensingPage() {
             </div>
           </div>
 
+          {/* Medical Information Card */}
+          {loadingMedicalInfo ? (
+            <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-8">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
+                <p className="mt-2 text-gray-500 dark:text-gray-400">
+                  Loading medical information...
+                </p>
+              </div>
+            </div>
+          ) : medicalInfo && (
+            <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-lg p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  Medical Information
+                </h3>
+                {hasCriticalAlerts && (
+                  <Badge type="danger" className="text-xs">
+                    <AlertTriangle className="w-3 h-3 inline mr-1" />
+                    Critical Alerts
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Drug Allergies - Critical Alert */}
+                {medicalInfo.hasDrugAllergy && (
+                  <div className="col-span-full rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-red-900 dark:text-red-100 text-sm">
+                          ⚠️ DRUG ALLERGY ALERT
+                        </h4>
+                        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                          Allergic to: <span className="font-semibold">{medicalInfo.drugAllergyType || "Specific drug not specified"}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pregnancy - Critical Alert */}
+                {medicalInfo.isPregnant && (
+                  <div className="col-span-full rounded-xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 p-4">
+                    <div className="flex items-start gap-3">
+                      <Baby className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-amber-900 dark:text-amber-100 text-sm">
+                          ⚠️ PREGNANCY ALERT
+                        </h4>
+                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                          Patient is pregnant {medicalInfo.pregnancyMonths && `(${medicalInfo.pregnancyMonths})`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Medical Conditions - Critical Alert */}
+                {medicalInfo.hasMedicalConditions && (
+                  <div className="col-span-full rounded-xl bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700 p-4">
+                    <div className="flex items-start gap-3">
+                      <Heart className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-orange-900 dark:text-orange-100 text-sm">
+                          ⚠️ MEDICAL CONDITION ALERT
+                        </h4>
+                        <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+                          {medicalInfo.medicalConditionsDetails || "Kidney disease, heart conditions, hypertension, or diabetes"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* General Allergies */}
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasAllergy ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        General Allergies
+                      </h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                        {medicalInfo.hasAllergy ? (
+                          medicalInfo.allergyDetails || "Yes (details not specified)"
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">No known allergies</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Breastfeeding */}
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-3">
+                    <Baby className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.isBreastfeeding ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        Breastfeeding
+                      </h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                        {medicalInfo.isBreastfeeding ? (
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">Yes</span>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">No</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Current Medications */}
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-3">
+                    <Pill className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onMedications ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        Current Medications
+                      </h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                        {medicalInfo.onMedications ? (
+                          medicalInfo.medicationType || "Yes (type not specified)"
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">None</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Birth Control */}
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-3">
+                    <Syringe className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.onBirthControl ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        Birth Control
+                      </h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                        {medicalInfo.onBirthControl ? (
+                          <span className="text-indigo-600 dark:text-indigo-400 font-medium">Yes</span>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">No</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Surgical History */}
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-start gap-3">
+                    <Activity className={`w-5 h-5 shrink-0 mt-0.5 ${medicalInfo.hasSurgicalHistory ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                        Surgical History
+                      </h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                        {medicalInfo.hasSurgicalHistory ? (
+                          <span className="text-teal-600 dark:text-teal-400 font-medium">Yes</span>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">No previous surgeries</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Success Message */}
           {showSuccessMessage && (
             <div className="rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
@@ -651,6 +888,18 @@ export default function MedicationDispensingPage() {
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Dispense Medication
             </h3>
+
+            {/* Critical Warnings */}
+            {hasCriticalAlerts && (
+              <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-800 dark:text-red-200 font-medium">
+                    Review medical alerts above before dispensing medication
+                  </p>
+                </div>
+              </div>
+            )}
 
             {!loadingMedications && availableMedications.length === 0 && (
               <div className="mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
