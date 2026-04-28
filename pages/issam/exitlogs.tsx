@@ -517,6 +517,16 @@ export default function ExitTrackingPage() {
                       ID: {participant.attendee.attendeeId}
                     </p>
                     <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                      <span className="font-medium">Color:</span>{" "}
+                      {toSentenceCase(participant.attendee.color)}
+                    </p>
+
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                      <span className="font-medium">SubCL:</span>{" "}
+                      {toSentenceCase(participant.attendee.subclName)}
+                    </p>
+
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
                       <span className="font-medium">Reason:</span>{" "}
                       {toSentenceCase(participant.reason)}
                     </p>
