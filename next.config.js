@@ -31,7 +31,7 @@ const nextConfig = {
   //   domains: [], // Add your image domains here
   // },
   
-  allowedDevOrigins: ['https://ticketa-api.gradelytics.com.ng'],
+  allowedDevOrigins: ['https://api.ticketa.com.ng'],
 
 }
 
