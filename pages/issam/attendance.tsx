@@ -14,6 +14,8 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
+  Shield,
+  ShieldAlert,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Scanner, useDevices } from "@yudiel/react-qr-scanner";
@@ -123,7 +125,7 @@ type AttendanceListResponse = {
 };
 
 type ScanResultModalData = {
-  type: "success" | "error";
+  type: "success" | "error" | "fraud";
   title: string;
   message: string;
   attendanceDate?: string;
@@ -132,6 +134,7 @@ type ScanResultModalData = {
   attendeeName?: string;
   uniqueId?: string;
   phone?: string;
+  fraudDetails?: string[];
 };
 
 type ResultModalProps = {
@@ -143,8 +146,284 @@ type ResultModalProps = {
 const EVENT_ID = 1;
 const DEFAULT_PER_PAGE = 10;
 
+// ===================== SCREEN DETECTION UTILITIES =====================
+
+interface FraudDetectionResult {
+  isFraud: boolean;
+  confidence: number;
+  reasons: string[];
+  metrics: {
+    screenPattern?: number;
+    brightness?: number;
+    contrast?: number;
+    sharpness?: number;
+  };
+}
+
+/**
+ * Analyzes an image to detect if it's being scanned from a screen vs physical print
+ */
+function analyzeImageForScreenDetection(
+  imageData: ImageData
+): FraudDetectionResult {
+  const { data, width, height } = imageData;
+  const reasons: string[] = [];
+  let fraudScore = 0;
+  const metrics: FraudDetectionResult["metrics"] = {};
+
+  // 1. PIXEL PATTERN DETECTION (screens have regular RGB subpixel patterns)
+  const pixelPatternScore = detectPixelPattern(data, width, height);
+  metrics.screenPattern = pixelPatternScore;
+  
+  // More strict thresholds - only flag very obvious screen patterns
+  if (pixelPatternScore > 0.75) {
+    reasons.push("Strong regular pixel pattern detected (digital screen)");
+    fraudScore += 40;
+  } else if (pixelPatternScore > 0.65) {
+    reasons.push("Moderate pixel pattern detected");
+    fraudScore += 25;
+  }
+
+  // 2. BRIGHTNESS ANALYSIS (screens emit light, paper reflects)
+  const brightnessScore = analyzeBrightness(data);
+  metrics.brightness = brightnessScore;
+  
+  // Higher threshold - screens are significantly brighter
+  if (brightnessScore > 0.82) {
+    reasons.push("Very high brightness (screen emission detected)");
+    fraudScore += 35;
+  } else if (brightnessScore > 0.72) {
+    reasons.push("Elevated brightness levels");
+    fraudScore += 20;
+  }
+
+  // 3. CONTRAST & SHARPNESS ANALYSIS (screenshots often have different characteristics)
+  const contrastScore = analyzeContrast(data);
+  const sharpnessScore = analyzeSharpness(data, width);
+  metrics.contrast = contrastScore;
+  metrics.sharpness = sharpnessScore;
+
+  // Only flag very low contrast (typical of screens)
+  if (contrastScore < 0.25) {
+    reasons.push("Very low contrast (screen characteristic)");
+    fraudScore += 25;
+  }
+
+  // Adjust sharpness detection - printed QR codes can vary
+  if (sharpnessScore < 0.25) {
+    reasons.push("Extremely low sharpness (digital artifact)");
+    fraudScore += 20;
+  } else if (sharpnessScore > 0.90) {
+    reasons.push("Unnaturally high sharpness (digital processing)");
+    fraudScore += 15;
+  }
+
+  // COMBINED METRICS - Multiple weak signals can indicate fraud
+  const suspiciousMetricsCount = [
+    pixelPatternScore > 0.6,
+    brightnessScore > 0.7,
+    contrastScore < 0.3,
+    sharpnessScore < 0.3 || sharpnessScore > 0.88
+  ].filter(Boolean).length;
+
+  if (suspiciousMetricsCount >= 3) {
+    reasons.push("Multiple screen indicators detected simultaneously");
+    fraudScore += 20;
+  }
+
+  // Require higher threshold - only flag obvious screens
+  const isFraud = fraudScore >= 60;
+  const confidence = Math.min(fraudScore / 100, 1);
+
+  console.log("=== FRAUD DETECTION SUMMARY ===");
+  console.log("Total Fraud Score:", fraudScore);
+  console.log("Is Fraud:", isFraud);
+  console.log("Confidence:", (confidence * 100).toFixed(1) + "%");
+  console.log("Reasons:", reasons);
+  console.log("Metrics:", {
+    pixelPattern: pixelPatternScore.toFixed(3),
+    brightness: brightnessScore.toFixed(3),
+    contrast: contrastScore.toFixed(3),
+    sharpness: sharpnessScore.toFixed(3),
+  });
+  console.log("==============================");
+
+  return {
+    isFraud,
+    confidence,
+    reasons,
+    metrics,
+  };
+}
+
+/**
+ * Detects regular pixel patterns typical of digital screens
+ */
+function detectPixelPattern(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): number {
+  let patternScore = 0;
+  const sampleSize = 80; // Reduced sample size
+  const checkRadius = 2; // Smaller radius for tighter checking
+
+  for (let i = 0; i < sampleSize; i++) {
+    const x = Math.floor(Math.random() * (width - checkRadius * 2)) + checkRadius;
+    const y = Math.floor(Math.random() * (height - checkRadius * 2)) + checkRadius;
+    const idx = (y * width + x) * 4;
+
+    // Check for repetitive patterns in nearby pixels (screen subpixels)
+    let similarityCount = 0;
+    let totalChecks = 0;
+    
+    for (let dx = -checkRadius; dx <= checkRadius; dx++) {
+      for (let dy = -checkRadius; dy <= checkRadius; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        const nIdx = ((y + dy) * width + (x + dx)) * 4;
+        
+        const rDiff = Math.abs(data[idx] - data[nIdx]);
+        const gDiff = Math.abs(data[idx + 1] - data[nIdx + 1]);
+        const bDiff = Math.abs(data[idx + 2] - data[nIdx + 2]);
+        
+        totalChecks++;
+        
+        // Screens have VERY uniform pixels - stricter threshold
+        if (rDiff + gDiff + bDiff < 20) {
+          similarityCount++;
+        }
+      }
+    }
+
+    const similarityRatio = similarityCount / totalChecks;
+    
+    // Only count as screen pattern if very high uniformity (>80%)
+    if (similarityRatio > 0.8) {
+      patternScore++;
+    }
+  }
+
+  return patternScore / sampleSize;
+}
+
+/**
+ * Analyzes brightness levels (screens are backlit and brighter)
+ */
+function analyzeBrightness(data: Uint8ClampedArray): number {
+  let totalBrightness = 0;
+  let highBrightnessCount = 0;
+  let extremeBrightnessCount = 0;
+  const pixelCount = data.length / 4;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const brightness = (r + g + b) / 3;
+
+    totalBrightness += brightness;
+    
+    // Count pixels with very high brightness (screen-like)
+    if (brightness > 210) {
+      highBrightnessCount++;
+    }
+    
+    // Count extremely bright pixels (definitely screen)
+    if (brightness > 235) {
+      extremeBrightnessCount++;
+    }
+  }
+
+  const avgBrightness = totalBrightness / pixelCount;
+  const highBrightnessRatio = highBrightnessCount / pixelCount;
+  const extremeBrightnessRatio = extremeBrightnessCount / pixelCount;
+
+  // Weight extreme brightness more heavily
+  return (avgBrightness / 255) * 0.4 + highBrightnessRatio * 0.3 + extremeBrightnessRatio * 0.3;
+}
+
+/**
+ * Analyzes contrast (screenshots often have compressed contrast)
+ */
+function analyzeContrast(data: Uint8ClampedArray): number {
+  let min = 255;
+  let max = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const brightness = (r + g + b) / 3;
+
+    if (brightness < min) min = brightness;
+    if (brightness > max) max = brightness;
+  }
+
+  return (max - min) / 255;
+}
+
+/**
+ * Analyzes sharpness using edge detection
+ */
+function analyzeSharpness(data: Uint8ClampedArray, width: number): number {
+  let edgeStrength = 0;
+  const sampleSize = 500;
+
+  for (let i = 0; i < sampleSize; i++) {
+    const idx = Math.floor(Math.random() * (data.length / 4 - width - 1)) * 4;
+
+    const curr = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+    const next = (data[idx + 4] + data[idx + 5] + data[idx + 6]) / 3;
+    const below = (data[idx + width * 4] + data[idx + width * 4 + 1] + data[idx + width * 4 + 2]) / 3;
+
+    edgeStrength += Math.abs(curr - next) + Math.abs(curr - below);
+  }
+
+  return Math.min(edgeStrength / sampleSize / 255, 1);
+}
+
+/**
+ * Captures a frame from the video element and analyzes it
+ */
+function captureAndAnalyzeFrame(videoElement: HTMLVideoElement): FraudDetectionResult | null {
+  try {
+    // Check if video is ready
+    if (!videoElement || videoElement.readyState < 2) {
+      console.warn("Video not ready for analysis");
+      return null;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoElement.videoWidth || 640;
+    canvas.height = videoElement.videoHeight || 480;
+    
+    console.log("Analyzing frame:", canvas.width, "x", canvas.height);
+    
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) {
+      console.error("Failed to get canvas context");
+      return null;
+    }
+
+    ctx.drawImage(videoElement, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    const result = analyzeImageForScreenDetection(imageData);
+    console.log("Frame analysis complete:", result);
+    
+    return result;
+  } catch (error) {
+    console.error("Error analyzing frame:", error);
+    return null;
+  }
+}
+
+// ===================== END SCREEN DETECTION UTILITIES =====================
+
 function ResultModal({ open, data, onClose }: ResultModalProps) {
   if (!open || !data) return null;
+
+  const isFraud = data.type === "fraud";
 
   return (
     <div className="fixed inset-0 z-[70]">
@@ -162,11 +441,15 @@ function ResultModal({ open, data, onClose }: ResultModalProps) {
               className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${
                 data.type === "success"
                   ? "bg-emerald-100 dark:bg-emerald-900/20"
+                  : isFraud
+                  ? "bg-orange-100 dark:bg-orange-900/20"
                   : "bg-red-100 dark:bg-red-900/20"
               }`}
             >
               {data.type === "success" ? (
                 <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+              ) : isFraud ? (
+                <ShieldAlert className="h-8 w-8 text-orange-600" />
               ) : (
                 <AlertTriangle className="h-8 w-8 text-red-600" />
               )}
@@ -179,6 +462,22 @@ function ResultModal({ open, data, onClose }: ResultModalProps) {
             <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
               {data.message}
             </p>
+
+            {isFraud && data.fraudDetails && data.fraudDetails.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10 p-3 text-left">
+                <p className="text-xs font-semibold text-orange-900 dark:text-orange-200 mb-2">
+                  Detection Details:
+                </p>
+                <ul className="space-y-1">
+                  {data.fraudDetails.map((detail, idx) => (
+                    <li key={idx} className="text-xs text-orange-800 dark:text-orange-300 flex items-start gap-2">
+                      <span className="text-orange-500 mt-0.5">•</span>
+                      <span>{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="mt-5 rounded-2xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4 text-left space-y-2">
               {data.attendeeName && (
@@ -223,6 +522,8 @@ function ResultModal({ open, data, onClose }: ResultModalProps) {
               className={`mt-6 w-full rounded-2xl h-12 ${
                 data.type === "success"
                   ? "bg-green-700 border-green-700 hover:bg-green-800 hover:border-green-800"
+                  : isFraud
+                  ? "bg-orange-600 border-orange-600 hover:bg-orange-700 hover:border-orange-700"
                   : "bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700"
               }`}
               onClick={onClose}
@@ -274,11 +575,8 @@ function getAttendeeName(record: AttendanceRecord) {
 }
 
 function getAttendeeLga(record: AttendanceRecord) {
-  const name =
-    record.attendee?.lga 
-    "Unknown LGA";
-
-  return name.toUpperCase();
+  const lga = record.attendee?.subcl?.lga;
+  return lga ? lga.toUpperCase() : "Unknown LGA";
 }
 
 function PassportAvatar({
@@ -298,11 +596,11 @@ function PassportAvatar({
         : "h-12 w-12 rounded-2xl";
 
   return photoUrl ? (
-<img
-  src={photoUrl || "/default-avatar.png"}
-  alt={name}
-  className={`${sizeClass} object-cover border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 shrink-0`}
-/>
+    <img
+      src={photoUrl || "/default-avatar.png"}
+      alt={name}
+      className={`${sizeClass} object-cover border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 shrink-0`}
+    />
   ) : (
     <div
       className={`${sizeClass} flex items-center justify-center border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-400 shrink-0`}
@@ -316,6 +614,8 @@ export default function AttendanceScannerPage() {
   const isMountedRef = useRef(true);
   const lastScannedRef = useRef<string>("");
   const lastScanTimeRef = useRef<number>(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -324,6 +624,7 @@ export default function AttendanceScannerPage() {
   const [deviceName, setDeviceName] = useState("Main Attendance Scanner");
   const [manualToken, setManualToken] = useState("");
   const [attendanceDate, setAttendanceDate] = useState(getTodayDateValue());
+  const [fraudDetectionEnabled, setFraudDetectionEnabled] = useState(true);
 
   const [summary, setSummary] = useState({
     registeredCount: 0,
@@ -397,6 +698,23 @@ export default function AttendanceScannerPage() {
     }
   }, [attendanceLock.isClosed]);
 
+  // Capture video element for fraud detection
+  useEffect(() => {
+    if (isScannerRunning) {
+      const timer = setInterval(() => {
+        const video = document.querySelector("video");
+        if (video && video !== videoRef.current) {
+          videoRef.current = video;
+          console.log("Video element captured for fraud detection");
+        }
+      }, 500);
+
+      return () => clearInterval(timer);
+    } else {
+      videoRef.current = null;
+    }
+  }, [isScannerRunning]);
+
   const scannerConstraints = useMemo<MediaTrackConstraints>(() => {
     if (selectedCameraId) {
       return { deviceId: { exact: selectedCameraId } };
@@ -456,9 +774,25 @@ export default function AttendanceScannerPage() {
     }
   }
 
-  async function markAttendance(rawToken: string) {
+  async function markAttendance(rawToken: string, fraudCheck?: FraudDetectionResult) {
     const token = rawToken.trim();
     if (!token) return;
+
+    // Check for fraud BEFORE proceeding
+    if (fraudDetectionEnabled && fraudCheck?.isFraud) {
+      setResultModalData({
+        type: "fraud",
+        title: "Fraudulent Scan Detected",
+        message: "This appears to be a scan of a screen/photo rather than a physical printed pass. Please use the actual printed pass.",
+        attendanceDate,
+        scannedCode: token,
+        fraudDetails: fraudCheck.reasons,
+      });
+      setResultModalOpen(true);
+      setScanState("error");
+      toast.error("Screen scan detected! Use the physical printed pass.");
+      return;
+    }
 
     if (attendanceLock.isClosed) {
       setResultModalData({
@@ -557,6 +891,7 @@ export default function AttendanceScannerPage() {
       toast.error("Enter a pass code first.");
       return;
     }
+    // Manual entry bypasses fraud detection
     await markAttendance(manualToken);
   }
 
@@ -606,6 +941,21 @@ export default function AttendanceScannerPage() {
           </div>
         </div>
       </div>
+
+      {/* Fraud Detection Status Banner */}
+      {fraudDetectionEnabled && (
+        <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-300 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            <div>
+              <p className="text-sm font-semibold">Screen Detection Active</p>
+              <p className="mt-1 text-xs">
+                System will reject scans from phone screens, monitors, or photos. Only physical printed passes are accepted.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {attendanceLock.enabled && (
         <div
@@ -692,7 +1042,20 @@ export default function AttendanceScannerPage() {
                     lastScannedRef.current = decodedText;
                     lastScanTimeRef.current = now;
 
-                    markAttendance(decodedText);
+                    // Perform fraud detection
+                    let fraudResult: FraudDetectionResult | null = null;
+                    if (fraudDetectionEnabled && videoRef.current) {
+                      fraudResult = captureAndAnalyzeFrame(videoRef.current);
+                      if (fraudResult) {
+                        console.log("Fraud detection result:", fraudResult);
+                        console.log("Is Fraud:", fraudResult.isFraud);
+                        console.log("Confidence:", fraudResult.confidence);
+                        console.log("Reasons:", fraudResult.reasons);
+                        console.log("Metrics:", fraudResult.metrics);
+                      }
+                    }
+                    
+                    markAttendance(decodedText, fraudResult || undefined);
                   }}
                   onError={(error) => {
                     console.error(error);
@@ -857,7 +1220,20 @@ export default function AttendanceScannerPage() {
                       lastScannedRef.current = decodedText;
                       lastScanTimeRef.current = now;
 
-                      markAttendance(decodedText);
+                      // Perform fraud detection
+                      let fraudResult: FraudDetectionResult | null = null;
+                      if (fraudDetectionEnabled && videoRef.current) {
+                        fraudResult = captureAndAnalyzeFrame(videoRef.current);
+                        if (fraudResult) {
+                          console.log("Fraud detection result:", fraudResult);
+                          console.log("Is Fraud:", fraudResult.isFraud);
+                          console.log("Confidence:", fraudResult.confidence);
+                          console.log("Reasons:", fraudResult.reasons);
+                          console.log("Metrics:", fraudResult.metrics);
+                        }
+                      }
+                      
+                      markAttendance(decodedText, fraudResult || undefined);
                     }}
                     onError={(error) => console.error("Scanner error:", error)}
                     constraints={scannerConstraints}
@@ -921,7 +1297,35 @@ export default function AttendanceScannerPage() {
                 </Select>
               </div>
 
-              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+              {/* <div className="rounded-2xl border border-blue-100 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/10 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-600" />
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Fraud Detection
+                    </h4>
+                  </div>
+                  <button
+                    onClick={() => setFraudDetectionEnabled(!fraudDetectionEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      fraudDetectionEnabled ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        fraudDetectionEnabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  {fraudDetectionEnabled
+                    ? "Blocking scans from screens and photos"
+                    : "Screen detection disabled (not recommended)"}
+                </p>
+              </div> */}
+
+              {/* <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Keyboard className="w-4 h-4 text-gray-500" />
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Manual Entry</h4>
@@ -941,7 +1345,10 @@ export default function AttendanceScannerPage() {
                     Mark Attendance Manually
                   </Button>
                 </form>
-              </div>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Manual entry bypasses fraud detection
+                </p>
+              </div> */}
             </div>
           </div>
         </div>
@@ -966,8 +1373,8 @@ export default function AttendanceScannerPage() {
               <p>Use manual entry only when the printed QR or barcode is damaged.</p>
             </div>
             <div className="flex gap-3">
-              <Users className="w-4 h-4 mt-0.5 text-gray-500 shrink-0" />
-              <p>After every scan, tap OK on the popup to continue scanning.</p>
+              <Shield className="w-4 h-4 mt-0.5 text-blue-500 shrink-0" />
+              <p>Fraud detection blocks scans from phone screens, monitors, and photos.</p>
             </div>
           </div>
         </div>
@@ -1009,13 +1416,13 @@ export default function AttendanceScannerPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                   {loadingRecords ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      <td colSpan={7} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
                         Loading attendance records...
                       </td>
                     </tr>
                   ) : attendanceRecords.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      <td colSpan={7} className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400 text-center">
                         No attendance records found for this date.
                       </td>
                     </tr>
@@ -1043,7 +1450,7 @@ export default function AttendanceScannerPage() {
                           </td>
 
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                            {attendeeLga || "—"}
+                            {attendeeLga}
                           </td>
 
                           <td className="px-4 py-3">
